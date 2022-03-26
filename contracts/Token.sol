@@ -93,6 +93,7 @@ contract Token {
     event tokenUnlisting(uint256 tokenID);
     event requestAdded(uint256 tokenID, address recipient);
     event tokenCreated(uint256 tokenID);
+    event tokenUnlisted(uint256 tokenID); 
 
 
 
@@ -109,6 +110,7 @@ contract Token {
         payable(tx.origin).transfer(Tokens[tokenID].amt);
         contractEthBalance -= Tokens[tokenID].amt;
         locked = false;
+        emit tokenUnlisted(tokenID);
       
         
     }
@@ -118,7 +120,7 @@ contract Token {
     function approve(uint256 recipientID, uint256 tokenID) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency returns (uint256){
         require(!locked, "No re-entrancy");
         bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
-         Tokenrequests[hashing].isCompleted = true;
+        Tokenrequests[hashing].isCompleted = true;
         address payable recipientTransferTo = payable( getAddress(tokenID, recipientID));
         locked = true;
         uint256 amount = getRequestAmt(tokenID, recipientID);
@@ -142,6 +144,7 @@ contract Token {
     
     //add request to token  
     function addRequest(uint256 tokenID, uint256 recipientID, uint256 amt , uint256 deadline) public  validTokenOnly(tokenID){
+        require(tx.origin != Tokens[tokenID].donorAddress, "You cannot request for your own token, try unlisting instead!");
         state memory newState = state( amt, false, deadline, tx.origin);
         bytes32 hashing = keccak256(abi.encode(recipientID, tokenID, Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
         Tokenrequests[hashing] = newState;
