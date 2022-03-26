@@ -79,6 +79,7 @@ contract Token {
 
     //setter function for contract balance limit
     function setBalanceLimit(uint256 newLimit) public  ownerOnly() {
+        require(newLimit >500 ,"Too low of a limit!");
         balanceLimit = newLimit;
         
     }
