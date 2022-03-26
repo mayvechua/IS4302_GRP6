@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0;
+pragma solidity >=0.6.0;
 import './Token.sol';
 import './Recipient.sol';
 contract Donor {
@@ -60,7 +60,7 @@ contract Donor {
         _;
     }
 
-    function createToken(uint256 donorId, uint256 amt, uint8 category) validDonorId(donorId) public payable {
+    function createToken(uint256 donorId, uint256 amt, string memory category) validDonorId(donorId) public payable {
         require(getWallet(donorId) >= amt, "Donor does not have enough ether to create token!");
         require(getWallet(donorId) < 100, "Donated amount hit limit!");
         donors[donorId].walletValue -= amt; 
@@ -74,7 +74,7 @@ contract Donor {
     }
     //ToDO:  emergency stop in approve
     function approveRecipient(uint256 tokenId, uint256 recipientID, uint256 donorId) validDonorId(donorId) public {
-        uint256 tokenIsUnlisted = tokenContract.approve(recipientID, tokenId, donors[donorId].owner);
+        uint256 tokenIsUnlisted = tokenContract.approve(recipientID, tokenId);
         recipientContract.completeToken(recipientID, tokenId);
         if (tokenIsUnlisted == 2) {   
             bool isIndex = false;

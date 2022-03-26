@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0;
+pragma solidity >=0.6.0;
 import './Token.sol';
 
 contract Recipient {
@@ -13,7 +13,7 @@ contract Recipient {
         string pw;
         uint256 etherWallet; // amt of ether in wallet
         uint256 tokenWallet;
-        uint8 category;
+        string category;
     }
     struct request {
         uint256 tokenId;
@@ -36,7 +36,7 @@ contract Recipient {
     function createRecipient (
         string memory name,
         string memory password,
-        uint8 category
+        string memory category
     ) public returns(uint256) {
         
         recipient memory newRecipient = recipient(
@@ -80,13 +80,13 @@ contract Recipient {
     function requestDonation(uint256 recipientId, uint256 tokenId, uint256 requestedAmt, uint256 deadline) public ownerOnly(recipientId) validRecipientId(recipientId) {
         require(requestedAmt > 0 , "minimum request need to contain at least 1 eth");
         require(requestedAmt <50 , "Requested Amounted hit limit");
-        require (tokenContract.getCategory(tokenId) == recipients[recipientId].category,  
+        require (keccak256(abi.encode(tokenContract.getCategory(tokenId))) == keccak256(abi.encode(recipients[recipientId].category)),  
         "you are not eligible to request for this token");
             request[] memory reqeusts= tokensRequested[recipientId];
             for (uint8 i; i< reqeusts.length; i++) {
                 require(reqeusts[i].tokenId == tokenId, "You have already request for this token!"); 
             }
-        tokenContract.addRequest(tokenId, recipientId, requestedAmt,deadline, recipients[recipientId].owner);
+        tokenContract.addRequest(tokenId, recipientId, requestedAmt,deadline);
         tokensRequested[recipientId].push(request(tokenId,requestedAmt));
 
     }

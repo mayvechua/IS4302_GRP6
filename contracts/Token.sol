@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0;
+pragma solidity >=0.6.0;
 
 contract Token {
     uint256 supplyLimit; 
@@ -8,13 +8,13 @@ contract Token {
     address owner;
     uint256 contractEthBalance;
     uint256 balanceLimit;
-    mapping(uint256 => token) public Tokens;
-    mapping (bytes32 => state) public Tokenrequests; // hash(recipientid and tokenid) map state of request, asumming that recipient can only request for 1 token at a time 
+    mapping(uint256 => token) Tokens;
+    mapping (bytes32 => state) Tokenrequests; // hash(recipientid and tokenid) map state of request, asumming that recipient can only request for 1 token at a time 
    
     struct token {
         uint256 donorID;
         address donorAddress;
-        uint8 category;
+        string category;
         uint256 amt;
         uint256[] recipientIdList;
 
@@ -27,7 +27,7 @@ contract Token {
         address recipientAddress;
     }
 
-    constructor() {
+    constructor() public {
         owner = msg.sender;
         supplyLimit= 1000;
         balanceLimit = 10000;
@@ -43,7 +43,7 @@ contract Token {
 
 
     modifier validTokenOnly(uint256 tokenID) {
-        require(tokenID <createdCount, "Invalid Token!");
+        require(tokenID <= createdCount, "Invalid Token!");
          _;
     }
 
@@ -98,7 +98,7 @@ contract Token {
 
 
     //Core Functions
-    function unlist(uint256 tokenID, address donorAddress) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency {
+    function unlist(uint256 tokenID) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency {
         require(!locked, "No re-entrancy");
         returnedCount += 1;
         //TODO: unlist from Donation Market
@@ -106,7 +106,7 @@ contract Token {
         delete Tokens[tokenID];
         locked = true;
         require(contractEthBalance >= Tokens[tokenID].amt, "Insufficient balance in contract pool!");
-        payable(donorAddress).transfer(Tokens[tokenID].amt);
+        payable(tx.origin).transfer(Tokens[tokenID].amt);
         contractEthBalance -= Tokens[tokenID].amt;
         locked = false;
       
@@ -115,22 +115,23 @@ contract Token {
     
 
     //approve function - send eth to recipients, minus amt from token 
-    function approve(uint256 recipientID, uint256 tokenID, address donorAddress) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency returns (uint256){
+    function approve(uint256 recipientID, uint256 tokenID) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency returns (uint256){
         require(!locked, "No re-entrancy");
-        state memory RequestInfo =  getState(tokenID, recipientID);
-        RequestInfo.isCompleted = true;
-        address payable recipientTransferTo = payable( RequestInfo.recipientAddress);
+        bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
+         Tokenrequests[hashing].isCompleted = true;
+        address payable recipientTransferTo = payable( getAddress(tokenID, recipientID));
         locked = true;
-        require(contractEthBalance >= RequestInfo.requestAmt, "Insufficient balance in contract pool!");
-        recipientTransferTo.transfer(RequestInfo.requestAmt);
-        contractEthBalance -= RequestInfo.requestAmt;
+        uint256 amount = getRequestAmt(tokenID, recipientID);
+        require(contractEthBalance >=   amount, "Insufficient balance in contract pool!");
+        recipientTransferTo.transfer( amount);
+        contractEthBalance -= amount;
         locked = false;
         emit transferred(tokenID, recipientTransferTo);
         
-        Tokens[tokenID].amt -= RequestInfo.requestAmt;
+        Tokens[tokenID].amt -= amount;
         if (Tokens[tokenID].amt  < 1) { //TODO: decide the number again
             emit tokenUnlisting(tokenID);
-            unlist(tokenID, donorAddress);
+            unlist(tokenID);
             return Tokens[tokenID].amt;
           
         }
@@ -140,16 +141,16 @@ contract Token {
     }
     
     //add request to token  
-    function addRequest(uint256 tokenID, uint256 recipientID, uint256 amt , uint256 deadline, address recipient) public  validTokenOnly(tokenID){
-        state memory newState = state( amt, false, deadline, recipient);
+    function addRequest(uint256 tokenID, uint256 recipientID, uint256 amt , uint256 deadline) public  validTokenOnly(tokenID){
+        state memory newState = state( amt, false, deadline, tx.origin);
         bytes32 hashing = keccak256(abi.encode(recipientID, tokenID, Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
         Tokenrequests[hashing] = newState;
         Tokens[tokenID].recipientIdList.push(recipientID);
-        emit requestAdded(tokenID, recipient);
+        emit requestAdded(tokenID, tx.origin);
     }
 
     // create token + list token on Donation market
-    function createToken(uint256 donorID, uint256 amt, uint8 category) public payable returns (uint256) {
+    function createToken(uint256 donorID, uint256 amt, string memory category) public payable returns (uint256) {
         require(createdCount - returnedCount <= supplyLimit, "Donation Market Capacity is reached!");
         require(contractEthBalance <= balanceLimit, "The limited amount of ETH stored in this contract is reached!");
         contractEthBalance += amt;
@@ -180,13 +181,33 @@ contract Token {
     }
 
     //getter function of status for the each request of each token
-    function  getState(uint256 tokenID, uint256 recipientID) public view  validTokenOnly(tokenID)returns (state memory) {
+    function  getStatus(uint256 tokenID, uint256 recipientID) public view  validTokenOnly(tokenID)returns (bool) {
         bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
-        return  Tokenrequests[hashing];
+        return  Tokenrequests[hashing].isCompleted;
     }
 
+    //getter function of deadline for the each request of each token
+    function  getDeadline(uint256 tokenID, uint256 recipientID) public view  validTokenOnly(tokenID)returns (uint256) {
+        bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
+        return  Tokenrequests[hashing].deadline;
+    }
+
+        //getter function of request for the each request of each token
+    function  getRequestAmt(uint256 tokenID, uint256 recipientID) public view  validTokenOnly(tokenID)returns (uint256) {
+        bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
+        return  Tokenrequests[hashing].requestAmt;
+    }
+    
+          //getter function of address for the each request of each token
+    function  getAddress(uint256 tokenID, uint256 recipientID) public view  validTokenOnly(tokenID)returns (address) {
+        bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
+        return  Tokenrequests[hashing].recipientAddress;
+    }
+    
+
+
     //getter function for token category for matching algorithm 
-    function getCategory(uint256 tokenID) public view validTokenOnly(tokenID) returns (uint8) {
+    function getCategory(uint256 tokenID) public view validTokenOnly(tokenID) returns (string memory) {
         return Tokens[tokenID].category;
     }
 
