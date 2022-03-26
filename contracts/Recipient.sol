@@ -33,7 +33,7 @@ contract Recipient {
     // mapping(uint256 => tokenState[]) public tokensApproved;
     // mapping(uint256 => tokenState[]) public tokensNotApproved;
     
-   constructor (Token tokenAddress) {
+   constructor (Token tokenAddress) public {
         tokenContract = tokenAddress;
         contractOwner = msg.sender;
     }
@@ -58,6 +58,9 @@ contract Recipient {
         recipients[newRecipientId] = newRecipient; 
         return newRecipientId;   
     }
+
+    event requestedDonation(uint256 recipientId, uint256 tokenId, uint256 amt, uint256 deadline);
+    event completedToken(uint256 recipientId, uint256 tokenId);
 
     //modifier to ensure a function is callable only by its owner    
     modifier ownerOnly(uint256 recipientId) {
@@ -128,27 +131,31 @@ contract Recipient {
         tokensRequested[recipientId].push(request(tokenId,requestedAmt));
 
         recipients[recipientId].state = recipientState.requesting;
+
+        emit requestedDonation(recipientId, tokenId, requestedAmt, deadline);
     }
 
     function completeToken(uint256 recipientId,uint256 tokenId) public {
-            bool isIndex = false;
-        
-            //store the token in database
-            for (uint8 i; i< tokensRequested[recipientId].length; i++) {
-                if (tokensRequested[recipientId][i].tokenId == tokenId) {
-                    isIndex = true;
-                    recipients[recipientId].wallet += tokensRequested[recipientId][i].amt;
-                }
-                if (isIndex) {
-                    tokensRequested[recipientId][i] = tokensRequested[recipientId][i+1];
-                }
+        bool isIndex = false;
+    
+        //store the token in database
+        for (uint8 i; i< tokensRequested[recipientId].length; i++) {
+            if (tokensRequested[recipientId][i].tokenId == tokenId) {
+                isIndex = true;
+                recipients[recipientId].wallet += tokensRequested[recipientId][i].amt;
             }
+            if (isIndex) {
+                tokensRequested[recipientId][i] = tokensRequested[recipientId][i+1];
+            }
+        }
 
-            tokensRequested[recipientId].pop();
+        tokensRequested[recipientId].pop();
 
-            recipients[recipientId].state = recipientState.receivedDonation;
-        
+        recipients[recipientId].state = recipientState.receivedDonation;
+
+        emit completedToken(recipientId, tokenId);
     }
+    
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
         return recipients[recipientId].wallet;
     }
