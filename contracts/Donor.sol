@@ -1,30 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.0;
-import './Token.sol';
-import './Recipient.sol';
+import "./Token.sol";
+import "./Recipient.sol";
+
 contract Donor {
 
-    enum donorState {created, donated} // what is the purpose?
-
     struct donor {
-        donorState state;
         address owner;
         string username;
         string pw;
         uint256 walletValue; // amt of ether in wallet
     }
 
-
     Token tokenContract;
     Recipient recipientContract;
+    address contractOwner;
 
-    constructor (Token tokenAddress, Recipient recipientAddress) public {
-        tokenContract = tokenAddress;
-        recipientContract = recipientAddress;
-    }
     uint256 public numDonors = 0;
     mapping(uint256 => donor) public donors;
     mapping(uint256 => uint256[]) public tokensCreated; // donorId => list of tokenID that donor owns
+
+    bool internal locked = false;
+    bool public contractStopped = false;
+
+    constructor (Token tokenAddress, Recipient recipientAddress) {
+        tokenContract = tokenAddress;
+        recipientContract = recipientAddress;
+        contractOwner = msg.sender;
+    }
 
     //function to create a new donor, and add to 'donors' map
     function createDonor (
@@ -33,15 +36,12 @@ contract Donor {
     ) public returns(uint256) {
         
         donor memory newDonor = donor(
-            donorState.created,
             msg.sender, // donor address
             name,
             password,
             0
         );
 
-
-        
         uint256 newDonorId = numDonors++;
         donors[newDonorId] = newDonor; //commit to state variable
         return newDonorId;  
@@ -55,25 +55,61 @@ contract Donor {
         _;
     }
     
+    //modifier to ensure that the donor is valid
     modifier validDonorId(uint256 donorId) {
         require(donorId < numDonors);
         _;
     }
 
-    function createToken(uint256 donorId, uint256 amt, string memory category) validDonorId(donorId) public payable {
+    // mutex: prevent re-entrant
+    modifier noReEntrant {
+        require(!locked, "No re-entrancy");
+        locked = true;
+        _;
+        locked = false;
+    }
+
+    // separate the payment to check for re-entrant
+    function transferPayment(address payable token, uint256 amt) noReEntrant public payable {
+        token.transfer(amt);
+    }
+
+    function createToken(uint256 donorId, uint256 amt, string memory category) validDonorId(donorId) public payable{
         require(getWallet(donorId) >= amt, "Donor does not have enough ether to create token!");
-        require(getWallet(donorId) < 100, "Donated amount hit limit!");
+        require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
         donors[donorId].walletValue -= amt; 
 
         address payable token = payable(tokenContract.getOwner());
-        //TODO: add mutex
-        token.transfer(amt); 
+
+         // add mutex
+        transferPayment(token, amt);
 
         uint256 tokenID = tokenContract.createToken(donorId, amt, category);
         tokensCreated[donorId].push(tokenID);
+
+        //reset locked to allow for payment for new token creation
+        locked = false;
     }
-    //ToDO:  emergency stop in approve
-    function approveRecipient(uint256 tokenId, uint256 recipientID, uint256 donorId) validDonorId(donorId) public {
+
+    modifier stoppedInEmergency {
+        if (!contractStopped) _;
+    }
+
+    modifier enableInEmergency {
+        if (contractStopped) _;
+    }
+
+    modifier contractOwnerOnly {
+        require(msg.sender == contractOwner, "only the owner of the contract can call this method!");
+        _;
+    }
+
+    function toggleContactStopped() public contractOwnerOnly {
+        contractStopped = !contractStopped;
+    }
+
+    //Emergency Stop enabled in approve 
+    function approveRecipient(uint256 tokenId, uint256 recipientID, uint256 donorId) validDonorId(donorId) stoppedInEmergency public payable {
         uint256 tokenIsUnlisted = tokenContract.approve(recipientID, tokenId);
         recipientContract.completeToken(recipientID, tokenId);
         if (tokenIsUnlisted == 2) {   
@@ -92,10 +128,20 @@ contract Donor {
         //TODO: store completed tokens in historical database? do we need to as transaction are all recorded in block?
     }
 
-
+    function transferToContract(uint256 amt) public payable noReEntrant {
+        require(amt > 0, "cannot transfer 0 ether to contract owner!");
+        address payable addr = payable(contractOwner);
+        
+        addr.transfer(amt); 
+    }
 
     function topUpWallet(uint256 donorId) ownerOnly(donorId) validDonorId(donorId) public payable {
+        require(msg.value <= 10 ether, "The top-up value is more than the wallet limit!"); // limit the amount of ether stored in the wallet
+        require(msg.value > 0, "The top-up value cannot be 0!");
         donors[donorId].walletValue += msg.value;
+
+        transferToContract(msg.value);  // transfer the ether to the contractOwner
+        locked = false;
     }
 
     function getWallet(uint256 donorId) ownerOnly(donorId) validDonorId(donorId) public view returns(uint256) {
@@ -111,5 +157,12 @@ contract Donor {
     }
 
 
-     //TODO: add selfdestruct function 
+     // self-destruct function 
+     function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(contractOwner);
+         selfdestruct(receiver);
+     }
+
+    
+
 }

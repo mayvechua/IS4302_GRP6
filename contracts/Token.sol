@@ -27,7 +27,7 @@ contract Token {
         address recipientAddress;
     }
 
-    constructor() public {
+    constructor() {
         owner = msg.sender;
         supplyLimit= 1000;
         balanceLimit = 10000;
@@ -118,14 +118,14 @@ contract Token {
     
 
     //approve function - send eth to recipients, minus amt from token 
-    function approve(uint256 recipientID, uint256 tokenID) public  noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency returns (uint256){
+    function approve(uint256 recipientID, uint256 tokenID) public payable noReentrancy() validTokenOnly(tokenID) tokenDonorOnly(tokenID) stoppedInEmergency returns (uint256){
         require(!locked, "No re-entrancy");
         bytes32 hashing = keccak256(abi.encode(recipientID, tokenID,  Tokens[tokenID].amt, Tokens[tokenID].category, Tokens[tokenID].donorID));
         Tokenrequests[hashing].isCompleted = true;
         address payable recipientTransferTo = payable( getAddress(tokenID, recipientID));
         locked = true;
         uint256 amount = getRequestAmt(tokenID, recipientID);
-        require(contractEthBalance >=   amount, "Insufficient balance in contract pool!");
+        require(contractEthBalance >=  amount, "Insufficient balance in contract pool!");
         recipientTransferTo.transfer( amount);
         contractEthBalance -= amount;
         locked = false;
@@ -218,6 +218,11 @@ contract Token {
     //getter function for owner
     function getOwner() public view returns(address) {
         return owner;
+    }
+
+    //getter function for contract ether balance (to be deleted)
+    function getBalance() public view returns (uint256) {
+        return contractEthBalance;
     }
     
 
