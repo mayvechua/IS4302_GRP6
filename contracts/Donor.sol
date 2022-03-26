@@ -25,9 +25,6 @@ contract Donor {
     uint256 public numDonors = 0;
     mapping(uint256 => donor) public donors;
     mapping(uint256 => uint256[]) public tokensCreated; // donorId => list of tokenID that donor owns
-    // mapping(uint256 => tokenState[]) public tokensCompleted; // store in database as historical
-    // mapping(uint256 => tokenState[]) public tokensIncomplete;
-
 
     //function to create a new donor, and add to 'donors' map
     function createDonor (
@@ -49,6 +46,8 @@ contract Donor {
         donors[newDonorId] = newDonor; //commit to state variable
         return newDonorId;  
     }
+
+    event approved(uint256 tokenID, address recipient);
 
     //modifier to ensure a function is callable only by its donor  
     modifier ownerOnly(uint256 donorId) {
@@ -79,7 +78,6 @@ contract Donor {
         recipientContract.completeToken(recipientID, tokenId);
         if (tokenIsUnlisted == 2) {   
             bool isIndex = false;
-            //store the token in database
             for (uint8 i; i< tokensCreated[donorId].length; i++) {
                 if (tokensCreated[donorId][i] == tokenId) {
                     isIndex = true;
