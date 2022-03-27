@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.1;
-import "./Token.sol";
+import "./Listing.sol";
 import "./Recipient.sol";
 
 contract Donor {
@@ -12,19 +12,19 @@ contract Donor {
         uint256 walletValue; // amt of ether in wallet
     }
 
-    Token tokenContract;
+    Listing listingContract;
     Recipient recipientContract;
     address contractOwner;
 
     uint256 public numDonors = 0;
     mapping(uint256 => donor) public donors;
-    mapping(uint256 => uint256[]) public tokensCreated; // donorId => list of tokenID that donor owns
+    mapping(uint256 => uint256[]) public listingsCreated; // donorId => list of listingId that donor owns
 
     bool internal locked = false;
     bool public contractStopped = false;
 
-    constructor (Token tokenAddress, Recipient recipientAddress) public {
-        tokenContract = tokenAddress;
+    constructor (Listing listingAddress, Recipient recipientAddress) public {
+        listingContract = listingAddress;
         recipientContract = recipientAddress;
         contractOwner = msg.sender;
     }
@@ -51,10 +51,10 @@ contract Donor {
     }
 
     event toppedUpWallet(uint256 donorId, uint256 amt);
-    event approved(uint256 tokenID, address recipient);
+    event approved(uint256 listingId, address recipient);
     event createdDonor(uint256 donorId);
-    event createdToken(uint256 donorId, uint256 tokenId, uint256 amt);
-    event approvedRecipient(uint256 tokenId, uint256 recipientId, uint256 donorId);
+    event createdToken(uint256 donorId, uint256 listingId, uint256 amt);
+    event approvedRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId);
 
 
 
@@ -78,27 +78,27 @@ contract Donor {
         locked = false;
     }
 
-    function transferPayment(address payable token, uint256 amt) noReEntrant public payable {
-         token.transfer(amt);
+    function transferPayment(address payable listing, uint256 amt) noReEntrant public payable {
+         listing.transfer(amt);
      }
 
     function createToken(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
-        require(getWallet(donorId) >= amt, "Donor does not have enough ether to create token!");
+        require(getWallet(donorId) >= amt, "Donor does not have enough ether to create listing!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
         donors[donorId].walletValue -= amt; 
 
-        address payable token = payable(tokenContract.getOwner());
+        address payable listing = payable(listingContract.getOwner());
 
           // add mutex
-         transferPayment(token, amt);
+         transferPayment(listing, amt);
 
-        uint256 tokenId = tokenContract.createToken(donorId, amt, category);
-        tokensCreated[donorId].push(tokenId);
+        uint256 listingId = listingContract.createToken(donorId, amt, category);
+        listingsCreated[donorId].push(listingId);
 
-        //reset locked to allow for payment for new token creation
+        //reset locked to allow for payment for new listing creation
         locked = false;
 
-        emit createdToken(donorId, tokenId, amt);
+        emit createdToken(donorId, listingId, amt);
     }
 
     modifier stoppedInEmergency {
@@ -119,25 +119,24 @@ contract Donor {
     }
 
     //Emergency Stop enabled in approve 
-    function approveRecipient(uint256 tokenId, uint256 recipientId, uint256 donorId) validDonorId(donorId) stoppedInEmergency public payable {
-        uint256 tokenIsUnlisted = tokenContract.approve(recipientId, tokenId);
-        recipientContract.completeToken(recipientId, tokenId);
-        if (tokenIsUnlisted == 2) {   
+    function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public payable {
+        uint256 listingIsUnlisted = listingContract.approve(recipientId, requestId, listingId);
+        recipientContract.completeRequest(recipientId, requestId, listingId);
+        if (listingIsUnlisted == 2) {   
             bool isIndex = false;
-            for (uint8 i; i< tokensCreated[donorId].length; i++) {
-                if (tokensCreated[donorId][i] == tokenId) {
+            for (uint8 i; i< listingsCreated[donorId].length; i++) {
+                if (listingsCreated[donorId][i] == listingId) {
                     isIndex = true;
                 }
                 if (isIndex) {
-                    tokensCreated[donorId][i] = tokensCreated[donorId][i+1];
+                    listingsCreated[donorId][i] = listingsCreated[donorId][i+1];
                 }
             }
 
-             tokensCreated[donorId].pop();
+             listingsCreated[donorId].pop();
         }
-        //TODO: store completed tokens in historical database? do we need to as transaction are all recorded in block?
 
-        emit approvedRecipient(tokenId, recipientId, donorId);
+        emit approvedRecipientRequest(listingId, recipientId, donorId, requestId);
     }
 
     function transferToContract(uint256 amt) public payable noReEntrant {
@@ -166,8 +165,8 @@ contract Donor {
         return donors[donorId].owner;
     }
 
-    function getActiveTokens(uint256 donorId) public view returns (uint256[] memory) {
-        return tokensCreated[donorId]; // tokens active now, if want see historical tokens --> view in database 
+    function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
+        return listingsCreated[donorId]; // listings active now, if want see historical listings --> view in database 
     }
 
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.1;
-import "./Token.sol";
+import "./Listing.sol";
 
 contract Recipient {
 
@@ -13,14 +13,18 @@ contract Recipient {
         string pw;
         uint256 wallet; // amt of ether in wallet
         string category;
+        uint256[] activeRequests;
+        uint256 numRequests;
     }
 
     struct request {
-        uint256 tokenId;
+        uint256[] listingsId;
         uint256 amt;
+        uint256 requestID;
+        uint8 deadline;
     }
 
-    Token tokenContract;
+    Listing listingContract;
     address contractOwner;
 
     bool internal locked = false;
@@ -29,12 +33,12 @@ contract Recipient {
 
     uint256 public numRecipients = 0;
     mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request[]) public tokensRequested; // recipientId => tokenState
-    // mapping(uint256 => tokenState[]) public tokensApproved;
-    // mapping(uint256 => tokenState[]) public tokensNotApproved;
+    mapping(bytes32 => request) public listingsRequested; // hash(recipientID, username,pw, requestID)
+    // mapping(uint256 => listingState[]) public listingsApproved;
+    // mapping(uint256 => listingState[]) public listingsNotApproved;
     
-   constructor (Token tokenAddress) public {
-        tokenContract = tokenAddress;
+   constructor (Listing listingAddress) public {
+        listingContract = listingAddress;
         contractOwner = msg.sender;
     }
 
@@ -44,14 +48,15 @@ contract Recipient {
         string memory password,
         string memory category
     ) public returns(uint256) {
-        
+        uint256[] memory setActiveRequest;
         recipient memory newRecipient = recipient(
             recipientState.created,
             msg.sender, // recipient address
             name,
             password,
             0, // wallet
-            category
+            category,
+             setActiveRequest,0
         );
         
         uint256 newRecipientId = numRecipients++;
@@ -59,8 +64,8 @@ contract Recipient {
         return newRecipientId;   
     }
 
-    event requestedDonation(uint256 recipientId, uint256 tokenId, uint256 amt, uint256 deadline);
-    event completedToken(uint256 recipientId, uint256 tokenId);
+    event requestedDonation(uint256 recipientId, uint256 listingId, uint256 amt, uint256 deadline, uint256 requestId);
+    event completedToken(uint256 recipientId, uint256 listingId);
 
     //modifier to ensure a function is callable only by its owner    
     modifier ownerOnly(uint256 recipientId) {
@@ -99,61 +104,65 @@ contract Recipient {
     }
     
     // separate the payment to check for re-entrant
-    function transferPayment(address payable token, uint256 amt) noReEntrant public payable {
-        token.transfer(amt);
+    function transferPayment(address payable listing, uint256 amt) noReEntrant public payable {
+        listing.transfer(amt);
     }
 
     //TODO: revisit the logic
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
-        // TODO: implement automatic depreciation of each token (7days to cash out for reach approval)! 
+        // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
         require(recipients[recipientId].wallet > 0, "Invalid amount to be withdrawn from wallet!");
-        uint256 tokenAmt = recipients[recipientId].wallet;
+        uint256 listingAmt = recipients[recipientId].wallet;
 
         address payable receiving = payable(getRecipientAddress(recipientId));
         recipients[recipientId].wallet = 0;
 
-        transferPayment(receiving, tokenAmt);
+        transferPayment(receiving, listingAmt);
 
         // unlock after the transaction is completed
         locked = true;
     }
 
-    function requestDonation(uint256 recipientId, uint256 tokenId, uint256 requestedAmt, uint256 deadline) public ownerOnly(recipientId) validRecipientId(recipientId) {
+    //when developer (oracle) approve of the proof of usage, it will be tagged to a request to prevent duplicative usage of proof of usage
+    function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline) public returns (uint256) {
         require(requestedAmt > 0 ether, "minimum request need to contain at least 1 eth");
         require(requestedAmt < 10 ether, "Requested Amounted hit limit");
-        require (keccak256(abi.encode(tokenContract.getCategory(tokenId))) == keccak256(abi.encode(recipients[recipientId].category)),  
-        "you are not eligible to request for this token");
-            request[] memory reqeusts= tokensRequested[recipientId];
-            for (uint8 i; i< reqeusts.length; i++) {
-                require(reqeusts[i].tokenId == tokenId, "You have already request for this token!"); 
+        uint256 requestId = recipients[recipientId].numRequests;
+        recipients[recipientId].numRequests += 1;
+        recipients[recipientId].activeRequests.push(requestId);
+        bytes32 hashing = keccak256(abi.encode(recipientId, recipients[recipientId].pw, recipients[recipientId].username, requestId));
+        uint256[] memory listings;
+        request memory newRequest = request (listings,requestedAmt,requestId,deadline);
+        listingsRequested[hashing] = newRequest;
+        recipients[recipientId].activeRequests.push(requestId);
+        return requestId;
+
+    }
+    function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) {
+        //checks
+        require (keccak256(abi.encode(listingContract.getCategory(listingId))) == keccak256(abi.encode(recipients[recipientId].category)),  
+        "you are not eligible to request for this listing");
+
+        bytes32 hashing = keccak256(abi.encode(recipientId, recipients[recipientId].pw, recipients[recipientId].username, requestId));
+        request memory requestInfo = listingsRequested[hashing];
+            for (uint8 i; i< requestInfo.listingsId.length; i++) {
+                require(requestInfo.listingsId[i] == listingId, "You have already request for this listing!"); 
             }
-        tokenContract.addRequest(tokenId, recipientId, requestedAmt,deadline);
-        tokensRequested[recipientId].push(request(tokenId,requestedAmt));
+        listingContract.addRequest(listingId, recipientId, requestInfo.amt, requestInfo.deadline, requestId);
+        listingsRequested[hashing].listingsId.push(listingId);
 
         recipients[recipientId].state = recipientState.requesting;
 
-        emit requestedDonation(recipientId, tokenId, requestedAmt, deadline);
+        emit requestedDonation(recipientId, listingId, requestInfo.amt, requestInfo.deadline, requestId);
     }
 
-    function completeToken(uint256 recipientId,uint256 tokenId) public {
+    function completeRequest(uint256 recipientId, uint256 requestId, uint256 listingId) public {
         bool isIndex = false;
-    
-        //store the token in database
-        for (uint8 i; i< tokensRequested[recipientId].length; i++) {
-            if (tokensRequested[recipientId][i].tokenId == tokenId) {
-                isIndex = true;
-                recipients[recipientId].wallet += tokensRequested[recipientId][i].amt;
-            }
-            if (isIndex) {
-                tokensRequested[recipientId][i] = tokensRequested[recipientId][i+1];
-            }
-        }
-
-        tokensRequested[recipientId].pop();
+        //manual deletion
 
         recipients[recipientId].state = recipientState.receivedDonation;
 
-        emit completedToken(recipientId, tokenId);
+        emit completedToken(recipientId, listingId);
     }
 
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
@@ -164,6 +173,14 @@ contract Recipient {
         return recipients[recipientId].owner;
     }
 
+    function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
+        return recipients[recipientId].activeRequests;
+    }
+
+    function getRequestedListing(uint256 recipientId, uint256 requestId) public view returns (uint256[] memory) {
+        bytes32 hashing = keccak256(abi.encode(recipientId, recipients[recipientId].pw, recipients[recipientId].username, requestId));
+        return listingsRequested[hashing].listingsId;
+    }
      // self-destruct function 
      function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(contractOwner);
