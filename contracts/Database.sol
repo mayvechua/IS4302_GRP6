@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.6.1;
 
 import "./DataStorage.sol";
 
@@ -43,6 +44,7 @@ contract Database {
     }
 
     function destroy() public developerOnly {
-        selfdestruct(msg.sender);
+        address payable addr = payable(msg.sender);
+        selfdestruct(addr);
     }
 }
