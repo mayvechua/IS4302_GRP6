@@ -1,4 +1,5 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.6.1;
 
 contract DataStorage {
     struct Credentials {
@@ -21,7 +22,8 @@ contract DataStorage {
     }
 
     function destroy() public ownerOnly {
-        selfdestruct(msg.sender);
+        address payable addr = payable(msg.sender);
+        selfdestruct(addr);
     }
 
     //Getter methods

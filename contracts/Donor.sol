@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.0;
+pragma solidity >=0.6.1;
 import "./Token.sol";
 import "./Recipient.sol";
 
@@ -78,10 +78,19 @@ contract Donor {
         locked = false;
     }
 
+    function transferPayment(address payable token, uint256 amt) noReEntrant public payable {
+         token.transfer(amt);
+     }
+
     function createToken(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
         require(getWallet(donorId) >= amt, "Donor does not have enough ether to create token!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
         donors[donorId].walletValue -= amt; 
+
+        address payable token = payable(tokenContract.getOwner());
+
+          // add mutex
+         transferPayment(token, amt);
 
         uint256 tokenId = tokenContract.createToken(donorId, amt, category);
         tokensCreated[donorId].push(tokenId);

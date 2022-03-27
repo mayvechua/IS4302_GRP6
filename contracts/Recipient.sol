@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.0;
+pragma solidity >=0.6.1;
 import "./Token.sol";
 
 contract Recipient {
@@ -155,7 +155,7 @@ contract Recipient {
 
         emit completedToken(recipientId, tokenId);
     }
-    
+
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
         return recipients[recipientId].wallet;
     }
