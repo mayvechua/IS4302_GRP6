@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.1;
 import "./DonationMarket.sol";
+import "./Token.sol";
 
 contract Recipient {
 
@@ -13,6 +14,8 @@ contract Recipient {
         string pw;
         uint256 wallet; // amt of ether in wallet
         uint256[] activeRequests;
+        uint256[] withdrawals;
+        
     }
 
     struct request {
@@ -20,11 +23,14 @@ contract Recipient {
         uint256 recipientId;
         uint256[] listingsId;
         uint256 amt;
+        uint256 partialAmt; // amt that has been completed with partial payment
         uint8 deadline;
         string category;
         bool isValue; 
+        uint expireAt; // time from approved to expired 
     }
 
+    Token tokenContract;
     DonationMarket marketContract;
     address contractOwner;
 
@@ -37,10 +43,14 @@ contract Recipient {
     uint256 public numRequests = 0;
     mapping(uint256 => recipient) public recipients;
     mapping(uint256 => request) public requests; // hash(recipientID, username,pw, requestID)
+    mapping(uint256 => request) public withdrawalRequests; // available only for 7 days
+
     // mapping(uint256 => listingState[]) public listingsApproved;
     // mapping(uint256 => listingState[]) public listingsNotApproved;
+
     
-   constructor (DonationMarket marketAddress) public {
+   constructor (Token tokenAddress, DonationMarket marketAddress) public {
+       tokenContract = tokenAddress;
         marketContract = marketAddress;
         contractOwner = msg.sender;
         autoDeprecate(); // set daily contract check
@@ -52,13 +62,15 @@ contract Recipient {
         string memory password
     ) public returns(uint256) {
         uint256[] memory setActiveRequest;
+        uint256[] memory setWithDrawal;
         recipient memory newRecipient = recipient(
             recipientState.created,
             msg.sender, // recipient address
             name,
             password,
             0, // wallet
-            setActiveRequest
+            setActiveRequest,
+            setWithDrawal
         );
         
         uint256 newRecipientId = numRecipients++;
@@ -120,8 +132,34 @@ contract Recipient {
     }
     
     // separate the payment to check for re-entrant
-    function transferPayment(address payable listing, uint256 amt) noReEntrant public payable {
-        listing.transfer(amt);
+    function transferPayment(address receiver, address donor, uint256 token) noReEntrant internal {
+        tokenContract.transfer(receiver, donor, token);
+    }
+
+    function cashOutTokens(uint256 amt) internal noReEntrant {
+        tokenContract.cashOut(amt);
+    }
+
+    function refundToken() public whenDeprecated {
+
+        for (uint recId; recId < numRecipients; recId++) {
+            for (uint req; req < recipients[recId].withdrawals.length; req++) {
+                if (block.timestamp > withdrawalRequests[recipients[recId].withdrawals[req]].expireAt) {
+                    uint256 amt = withdrawalRequests[req].amt;
+
+                    recipients[req].wallet -= amt; // deduct the expired tokens from the recipient's wallet
+
+                    transferPayment(recipients[recId].owner, marketContract.getOwner(), amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
+
+                    locked = false;
+
+                    delete withdrawalRequests[req];
+                }
+            }
+        }
+
+        autoDeprecate(); // reset the daily auto deprecation time
+        
     }
 
     //TODO: revisit the logic
@@ -130,10 +168,9 @@ contract Recipient {
         require(recipients[recipientId].wallet > 0, "Invalid amount to be withdrawn from wallet!");
         uint256 listingAmt = recipients[recipientId].wallet;
 
-        address payable receiving = payable(getRecipientAddress(recipientId));
         recipients[recipientId].wallet = 0;
-
-        transferPayment(receiving, listingAmt);
+        delete withdrawalRequests[recipientId]; // all tokens withdrawn
+        cashOutTokens(listingAmt);
 
         // unlock after the transaction is completed
         locked = false;
@@ -148,12 +185,12 @@ contract Recipient {
         numRequests +=1;
         recipients[recipientId].activeRequests.push(requestId);
         uint256[] memory listings;
-        request memory newRequest = request (requestId, recipientId,listings,requestedAmt,deadline, category, true);
+        request memory newRequest = request (requestId, recipientId,listings,requestedAmt, 0, deadline, category, true, block.timestamp);
         requests[requestId] = newRequest;
         recipients[recipientId].activeRequests.push(requestId);
         return requestId;
-
     }
+
     function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) {
         //checks
         require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(requests[requestId].category)),  
@@ -171,11 +208,18 @@ contract Recipient {
     }
 
     function completeRequest(uint256 requestId, uint256 listingId) public {
+        withdrawalRequests[requestId] = requests[requestId];
+        withdrawalRequests[requestId].expireAt = block.timestamp + wait_period; // withdrawal of tokens allowed for 7 days from time of completion 
+        withdrawalRequests[requestId].amt += withdrawalRequests[requestId].partialAmt; // final amount to be added into the wallet
+
+        recipients[withdrawalRequests[requestId].recipientId].wallet += withdrawalRequests[requestId].amt;
+
         delete requests[requestId];
         emit completedRequest(requestId, listingId);
     }
 
     function partialCompleteRequest(uint256 requestId, uint256 leftoverAmt) public {
+        requests[requestId].partialAmt = requests[requestId].amt - leftoverAmt; // to be added to the final amount that can be withdrawn in the wallet
         requests[requestId].amt = leftoverAmt;
     }
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
