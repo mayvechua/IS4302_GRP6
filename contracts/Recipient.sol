@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.1;
+pragma solidity >=0.6.0;
 import "./Token.sol";
 
 contract Recipient {
 
-    enum recipientState {created, requesting, receivedDonation }
+    enum recipientState {created, requesting, receivedDonation}
 
     struct recipient {
         recipientState state;
@@ -18,6 +18,7 @@ contract Recipient {
     struct request {
         uint256 tokenId;
         uint256 amt;
+        uint expireAt; // time from approved to expired 
     }
 
     Token tokenContract;
@@ -26,16 +27,18 @@ contract Recipient {
     bool internal locked = false;
     bool public contractStopped = false;
     uint constant wait_period = 7 days;
+    uint contract_maintenance; // time tracker, deprecate the withdrawToken() and check for expiration daily
 
     uint256 public numRecipients = 0;
     mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request[]) public tokensRequested; // recipientId => tokenState
-    // mapping(uint256 => tokenState[]) public tokensApproved;
-    // mapping(uint256 => tokenState[]) public tokensNotApproved;
+    mapping(uint256 => request[]) public tokensRequested; // recipientId => request
+    mapping(uint256 => request[]) public withdrawalTokens; // tokens to be withdrawn, available only for 7 days
+
     
-   constructor (Token tokenAddress) public {
+    constructor (Token tokenAddress) public {
         tokenContract = tokenAddress;
         contractOwner = msg.sender;
+        autoDeprecate(); // set daily contract check
     }
 
     //function to create a new recipient, and add to 'recipients' map
@@ -90,6 +93,23 @@ contract Recipient {
         _;
     }
 
+    // deprecate daily to check if the token has expired before allowing withdrawal of tokens
+    function autoDeprecate() public {
+        contract_maintenance = block.timestamp + 1 days;
+    }
+
+    function hasExpired() public view returns (bool) {
+        return block.timestamp > contract_maintenance ? true : false;
+    }
+
+    modifier isActive {
+        if (! hasExpired()) _;
+    }
+
+    modifier whenDeprecated {
+        if (hasExpired()) _;
+    }
+
     // mutex: prevent re-entrant
     modifier noReEntrant {
         require(!locked, "No re-entrancy");
@@ -103,19 +123,43 @@ contract Recipient {
         token.transfer(amt);
     }
 
-    //TODO: revisit the logic
-    function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
+    function refundToken() public whenDeprecated {
+        for (uint recId; recId < numRecipients; recId++) {
+            for (uint token; token < withdrawalTokens[recId].length; token++) {
+                if (block.timestamp > withdrawalTokens[recId][token].expireAt) {
+                    uint256 amt = withdrawalTokens[recId][token].amt;
+                    address payable addr = payable(tokenContract.getOwner());
+
+                    recipients[recId].wallet -= amt; // deduct the expired tokens from the recipient's wallet
+
+                    transferPayment(addr, amt); // refund the expired tokens to the owner
+
+                    locked = false;
+
+                    delete withdrawalTokens[recId][token]; 
+                }
+            }
+        }
+
+        autoDeprecate(); // reset the daily auto deprecation time
+        
+    }
+    
+    function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency isActive {
         // TODO: implement automatic depreciation of each token (7days to cash out for reach approval)! 
+
         require(recipients[recipientId].wallet > 0, "Invalid amount to be withdrawn from wallet!");
         uint256 tokenAmt = recipients[recipientId].wallet;
 
         address payable receiving = payable(getRecipientAddress(recipientId));
         recipients[recipientId].wallet = 0;
 
+        delete withdrawalTokens[recipientId]; // all tokens withdrawn
+
         transferPayment(receiving, tokenAmt);
 
         // unlock after the transaction is completed
-        locked = true;
+        locked = false;
     }
 
     function requestDonation(uint256 recipientId, uint256 tokenId, uint256 requestedAmt, uint256 deadline) public ownerOnly(recipientId) validRecipientId(recipientId) {
@@ -123,12 +167,13 @@ contract Recipient {
         require(requestedAmt < 10 ether, "Requested Amounted hit limit");
         require (keccak256(abi.encode(tokenContract.getCategory(tokenId))) == keccak256(abi.encode(recipients[recipientId].category)),  
         "you are not eligible to request for this token");
-            request[] memory reqeusts= tokensRequested[recipientId];
-            for (uint8 i; i< reqeusts.length; i++) {
-                require(reqeusts[i].tokenId == tokenId, "You have already request for this token!"); 
+            request[] memory requests= tokensRequested[recipientId];
+            for (uint8 i; i< requests.length; i++) {
+                require(requests[i].tokenId == tokenId, "You have already request for this token!"); 
             }
         tokenContract.addRequest(tokenId, recipientId, requestedAmt,deadline);
-        tokensRequested[recipientId].push(request(tokenId,requestedAmt));
+        tokensRequested[recipientId].push(request(tokenId,requestedAmt, block.timestamp));
+
 
         recipients[recipientId].state = recipientState.requesting;
 
@@ -143,6 +188,10 @@ contract Recipient {
             if (tokensRequested[recipientId][i].tokenId == tokenId) {
                 isIndex = true;
                 recipients[recipientId].wallet += tokensRequested[recipientId][i].amt;
+
+                tokensRequested[recipientId][i].expireAt = block.timestamp + wait_period;
+
+                withdrawalTokens[recipientId].push(tokensRequested[recipientId][i]); 
             }
             if (isIndex) {
                 tokensRequested[recipientId][i] = tokensRequested[recipientId][i+1];
