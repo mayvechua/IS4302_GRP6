@@ -126,13 +126,13 @@ contract DonationMarket {
         //transfer tokens
         locked = true;
         uint256 amount = ListingRequests[requestId].requestAmt;
-        require(contractEthBalance >=   amount, "Insufficient balance in contract pool!");
-        tokenContract.transfer(owner, ListingRequests[requestId].recipientAddress, Listings[listingId].amt);
-        contractEthBalance -= amount;
+        uint256 leftoverAmt= Listings[listingId].amt - amount;
+        require(contractEthBalance >= amount - leftoverAmt, "Insufficient balance in contract pool!");
+        tokenContract.transfer(owner, ListingRequests[requestId].recipientAddress, amount - leftoverAmt);
+        contractEthBalance -= amount - leftoverAmt;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
         // transfer end, check 
-        uint256 leftoverAmt= Listings[listingId].amt - amount;
         if (Listings[listingId].amt - amount < 0) {
             ListingRequests[requestId].requestAmt = leftoverAmt; 
        
