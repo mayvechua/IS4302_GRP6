@@ -47,8 +47,7 @@ contract Recipient {
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
         string memory name,
-        string memory password,
-        string memory category
+        string memory password
     ) public returns(uint256) {
         uint256[] memory setActiveRequest;
         recipient memory newRecipient = recipient(
