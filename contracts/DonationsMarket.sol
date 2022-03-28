@@ -1,6 +1,8 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.6.0;
+
 import "./Token.sol";
-import "eth-heap/contracts/Heap.sol";
+//import "eth-heap/contracts/Heap.sol";
 
 contract DonationsMarket {
 
@@ -20,13 +22,13 @@ contract DonationsMarket {
     function list(uint256 tokenId) public {
        require(msg.sender == tokenContract.getOwner(tokenId));
        tokenList[tokenId] = tokenContract.getTokenAmt(tokenId);
-       emit listedEvent(id);
+       emit listedEvent(tokenId);
     }
 
     function unlist(uint256 tokenId) public {
        require(msg.sender == tokenContract.getOwner(tokenId));
        tokenList[tokenId] = 0;
-       emit unlistedEvent(id);
+       emit unlistedEvent(tokenId);
   }
 
     // if amount of token left <1, unlist token
