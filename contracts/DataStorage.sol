@@ -1,73 +1,99 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.1;
+pragma solidity >=0.6.0;
+pragma experimental ABIEncoderV2;
 
 contract DataStorage {
-    struct Credentials {
-        string username;
-        string emailAddress;
-        string password;
-        string homeAddress;
-        address accountAddress;
-        uint32 phoneNumber;
-        uint256 userId; 
+    struct donation {
+        uint256 id;
+        uint256 amt;
+        address recipient;
+        string category;
+        uint256 timestamp; // can call block.timestamp when donation is made and store it
     }
 
-    address owner = msg.sender;
-    mapping(string => Credentials) loginCredentialsStorage;
-    mapping(string => uint256) exchangeRateStorage;
+    struct request {
+        uint256 id;
+        uint256 amt;
+        address requester;
+        string category;
+        uint256 timestamp; // time request was made
+        uint256 deadline;
+    }
 
-    modifier ownerOnly() {
+    mapping(address => donation[]) donationHistory;
+    mapping(address => request[]) requestHistory;
+    request[] listings;
+    address owner;
+
+    constructor() public {
+        owner = msg.sender;
+    }
+
+    modifier ownerOnly {
         require(msg.sender == owner);
         _;
     }
 
-    function destroy() public ownerOnly {
-        address payable addr = payable(msg.sender);
-        selfdestruct(addr);
+    bool internal locked;
+    bool isStopped = false;
+
+    modifier noReentrancy() {
+        require(!locked, "No re-entrancy");
+        _;
     }
 
-    //Getter methods
-    function getOwner() public view returns (address) {
+    modifier stoppedInEmergency {
+        require(!isStopped);
+        _;
+    }
+
+    //Security functions
+    //Emergency Stop
+    function stopContract() public ownerOnly() {
+        isStopped = true;
+    }
+
+    function resumeContract() public ownerOnly()  {
+        isStopped = false;
+    }
+
+    //Mortal
+    function selfDestruct() public ownerOnly() {
+        address payable addr = payable(owner);
+        selfdestruct(addr); 
+    }
+
+    //Setter functions
+    function setDonation(uint256 id, uint256 amt, address recipient, string memory category, uint256 timestamp) public stoppedInEmergency returns(donation memory) {
+        return donation(id, amt, recipient, category, timestamp);
+    }
+
+    function addDonationHistory(donation memory transaction) public stoppedInEmergency {
+        donationHistory[msg.sender].push(transaction);
+    }
+
+    function setRequest(uint256 id, uint256 amt, address requester, string memory category, uint256 timestamp, uint256 deadline) public stoppedInEmergency returns(request memory) {
+        return request(id, amt, requester, category, timestamp, deadline);
+    }
+
+    function addRequestHistory(request memory transaction) public stoppedInEmergency {
+        requestHistory[msg.sender].push(transaction);
+    }
+
+    //Getter functions
+    function getDonationHistory() public view returns(donation[] memory){
+        return donationHistory[msg.sender];
+    }
+
+    function getRequestHistory() public view returns(request[] memory){
+        return requestHistory[msg.sender];
+    }
+
+    function getListings() public view returns(request[] memory) {
+        return listings;
+    }
+
+    function getOwner() public view returns(address) {
         return owner;
-    }
-
-    function getEmailAddress(string memory username) public view returns (string memory) {
-        return loginCredentialsStorage[username].emailAddress;
-    }
-
-    function getPassword(string memory username) public view returns (string memory) {
-        return loginCredentialsStorage[username].password;
-    }
-
-    function getHomeAddress(string memory username) public view returns (string memory) {
-        return loginCredentialsStorage[username].homeAddress;
-    }
-
-    function getAccountAddress(string memory username) public view returns (address) {
-        return loginCredentialsStorage[username].accountAddress;
-    }
-
-    function getPhoneNumber(string memory username) public view returns (uint32) {
-        return loginCredentialsStorage[username].phoneNumber;
-    }
-
-    function getUserId(string memory username) public view returns (uint256) {
-        return loginCredentialsStorage[username].userId;
-    }
-
-    function getExchangeRate(string memory countryCode) public view returns (uint256) {
-        return exchangeRateStorage[countryCode];
-    }
-
-    //Setter methods
-    function setCredentials(string memory username, string memory emailAddress, string memory password, 
-        string memory homeAddress, address accountAddress, uint32 phoneNumber, uint256 userId) public {
-            Credentials memory loginCredentials = Credentials(username, emailAddress, password, homeAddress, accountAddress, 
-                phoneNumber, userId);
-            loginCredentialsStorage[username] = loginCredentials;
-    }
-
-    function setExchangeRate(string memory countryCode, uint256 rate) public {
-        exchangeRateStorage[countryCode] = rate;
     }
 }
