@@ -120,7 +120,7 @@ contract DonationMarket {
     
 
     //approve function - send eth to recipients, minus amt from token 
-    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency returns (uint256){
+    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency {
         require(!locked, "No re-entrancy");
         require(ListingRequests[requestId].isValue, "request has been taken down");
         //transfer tokens
@@ -133,20 +133,15 @@ contract DonationMarket {
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
         // transfer end, check 
-        if (Listings[listingId].amt - amount < 0) {
-            ListingRequests[requestId].requestAmt = leftoverAmt; 
-       
-        } else {
-            delete ListingRequests[requestId]; 
-        }
+        
+        delete ListingRequests[requestId]; 
+        
         Listings[listingId].amt -= amount;
+
         if (Listings[listingId].amt  < 1) { 
             emit tokenUnlisting(listingId);
             unlist(listingId);
         }
-        return leftoverAmt;
-
-    
 
     }
     

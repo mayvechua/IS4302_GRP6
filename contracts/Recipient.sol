@@ -23,11 +23,11 @@ contract Recipient {
         uint256 recipientId;
         uint256[] listingsId;
         uint256 amt;
-        uint256 partialAmt; // amt that has been completed with partial payment
         uint8 deadline;
         string category;
         bool isValue; 
         uint expireAt; // time from approved to expired 
+        address donorAddress; // to refund the tokens after the expiration date
     }
 
     Token tokenContract;
@@ -132,8 +132,8 @@ contract Recipient {
     }
     
     // separate the payment to check for re-entrant
-    function transferPayment(address receiver, address donor, uint256 token) noReEntrant internal {
-        tokenContract.transfer(receiver, donor, token);
+    function transferPayment(address sender, address receiver, uint256 token) noReEntrant internal {
+        tokenContract.transfer(sender, receiver, token);
     }
 
     function cashOutTokens(uint256 amt) internal noReEntrant {
@@ -149,7 +149,7 @@ contract Recipient {
 
                     recipients[req].wallet -= amt; // deduct the expired tokens from the recipient's wallet
 
-                    transferPayment(recipients[recId].owner, marketContract.getOwner(), amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
+                    transferPayment(recipients[recId].owner, withdrawalRequests[req].donorAddress, amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
 
                     locked = false;
 
@@ -185,7 +185,7 @@ contract Recipient {
         numRequests +=1;
         recipients[recipientId].activeRequests.push(requestId);
         uint256[] memory listings;
-        request memory newRequest = request (requestId, recipientId,listings,requestedAmt, 0, deadline, category, true, block.timestamp);
+        request memory newRequest = request (requestId, recipientId,listings,requestedAmt, deadline, category, true, block.timestamp, address(0));
         requests[requestId] = newRequest;
         recipients[recipientId].activeRequests.push(requestId);
         return requestId;
@@ -207,21 +207,17 @@ contract Recipient {
         emit requestedDonation(recipientId, listingId, requestInfo.amt, requestInfo.deadline, requestId);
     }
 
-    function completeRequest(uint256 requestId, uint256 listingId) public {
+    function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public {
         withdrawalRequests[requestId] = requests[requestId];
         withdrawalRequests[requestId].expireAt = block.timestamp + wait_period; // withdrawal of tokens allowed for 7 days from time of completion 
-        withdrawalRequests[requestId].amt += withdrawalRequests[requestId].partialAmt; // final amount to be added into the wallet
 
         recipients[withdrawalRequests[requestId].recipientId].wallet += withdrawalRequests[requestId].amt;
+        withdrawalRequests[requestId].donorAddress = donorAddress;
 
         delete requests[requestId];
         emit completedRequest(requestId, listingId);
     }
 
-    function partialCompleteRequest(uint256 requestId, uint256 leftoverAmt) public {
-        requests[requestId].partialAmt = requests[requestId].amt - leftoverAmt; // to be added to the final amount that can be withdrawn in the wallet
-        requests[requestId].amt = leftoverAmt;
-    }
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
         return recipients[recipientId].wallet;
     }

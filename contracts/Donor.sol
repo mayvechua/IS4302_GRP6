@@ -99,12 +99,10 @@ contract Donor {
 
     //Emergency Stop enabled in approve 
     function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public payable {
-        uint256 leftoverAmt = marketContract.approve(requestId, listingId);
-        if (leftoverAmt != 0) {
-            recipientContract.partialCompleteRequest(requestId,leftoverAmt );
-        } else {
-            recipientContract.completeRequest(requestId, listingId);
-        }
+        marketContract.approve(requestId, listingId);
+        
+        address donorAdd = donors[donorId].owner;
+        recipientContract.completeRequest(requestId, listingId, donorAdd);
      
         emit approvedRecipientRequest(listingId, recipientId, donorId, requestId);
     }
