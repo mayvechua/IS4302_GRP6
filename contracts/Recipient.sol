@@ -133,7 +133,7 @@ contract Recipient {
     
     // separate the payment to check for re-entrant
     function transferPayment(address sender, address receiver, uint256 token) noReEntrant internal {
-        tokenContract.transfer(sender, receiver, token);
+        tokenContract.transferToken(sender, receiver, token);
     }
 
     function cashOutTokens(uint256 amt) internal noReEntrant {
@@ -216,6 +216,13 @@ contract Recipient {
 
         delete requests[requestId];
         emit completedRequest(requestId, listingId);
+    }
+
+    function cancelRequest(uint256 recipientId, uint256 requestId, uint256 listingId) public {
+        delete requests[requestId];
+        delete recipients[recipientId].activeRequests[requestId]; // request no longer active
+        marketContract.cancelRequest(requestId, listingId); // remove request from market listing
+        numRequests -=1;
     }
 
     function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {

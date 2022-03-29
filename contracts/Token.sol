@@ -49,7 +49,7 @@ contract Token {
     }
 
     //transfer token from sender to recipient 
-    function transfer(address sender, address recipient, uint256 tokens) public   stoppedInEmergency {
+    function transferToken(address sender, address recipient, uint256 tokens) public   stoppedInEmergency {
         erc20Contract.transferFrom(sender,recipient,tokens);
     } 
 

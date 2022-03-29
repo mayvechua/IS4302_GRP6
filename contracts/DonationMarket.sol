@@ -10,6 +10,7 @@ contract DonationMarket {
     mapping(uint256 => listing) Listings;
     mapping (uint256 => state) ListingRequests; 
     Token tokenContract;
+    uint contract_maintenance; // time tracker, deprecate the withdrawToken() and check for expiration daily
 
     struct listing {
         uint256 donorId;
@@ -28,6 +29,7 @@ contract DonationMarket {
         uint256 deadline;
         address recipientAddress;
         bool isValue;
+        uint expired;
     }
     
 
@@ -35,7 +37,7 @@ contract DonationMarket {
         tokenContract = tokenAddress;
         owner = msg.sender;
         balanceLimit = 10000;
-        //add recipient and donor contract ?
+        autoDeprecate(); // set daily contract check
     }
 
 
@@ -81,6 +83,23 @@ contract DonationMarket {
         isStopped = false;
     }
 
+    // deprecate daily to check if the token has expired before allowing withdrawal of tokens
+    function autoDeprecate() public {
+        contract_maintenance = block.timestamp + 1 days;
+    }
+
+    function hasExpired() public view returns (bool) {
+        return block.timestamp > contract_maintenance ? true : false;
+    }
+
+    modifier isActive {
+        if (! hasExpired()) _;
+    }
+
+    modifier whenDeprecated {
+        if (hasExpired()) _;
+    }
+
     //setter function for contract balance limit
     function setBalanceLimit(uint256 newLimit) public  ownerOnly() {
         require(newLimit >500 ,"Too low of a limit!");
@@ -101,16 +120,30 @@ contract DonationMarket {
     event tokenUnlisted(uint256 listingId); 
 
 
-
+    //Automatic Deprecation of listing and unlisting (check the deadline)
+    function autoUnlist() internal whenDeprecated {
+        for (uint listId; listId < listingCount; listId++) {
+            for (uint req; req < Listings[listId].requestIdList.length; req++) {
+                if (block.timestamp > ListingRequests[req].expired) {
+                    cancelRequest(req, listId); // request has expired, removed request
+                }
+            }
+        }
+        autoDeprecate();
+    }
 
     //Core Functions
+    function cancelRequest(uint256 requestId, uint256 listingId) public validTokenOnly(listingId) {
+        delete ListingRequests[requestId];
+    }
+
     function unlist(uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency {
         require(!locked, "No re-entrancy");
         //TODO: unlist from Donation Market
         delete Listings[listingId];
         locked = true;
         require(contractEthBalance >= Listings[listingId].amt, "Insufficient balance in contract pool!");
-        tokenContract.transfer(owner, tx.origin, Listings[listingId].amt);
+        tokenContract.transferToken(owner, tx.origin, Listings[listingId].amt);
         contractEthBalance -= Listings[listingId].amt;
         locked = false;
         emit tokenUnlisted(listingId);
@@ -120,7 +153,7 @@ contract DonationMarket {
     
 
     //approve function - send eth to recipients, minus amt from token 
-    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency {
+    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency returns (uint256){
         require(!locked, "No re-entrancy");
         require(ListingRequests[requestId].isValue, "request has been taken down");
         //transfer tokens
@@ -128,31 +161,38 @@ contract DonationMarket {
         uint256 amount = ListingRequests[requestId].requestAmt;
         uint256 leftoverAmt= Listings[listingId].amt - amount;
         require(contractEthBalance >= amount - leftoverAmt, "Insufficient balance in contract pool!");
-        tokenContract.transfer(owner, ListingRequests[requestId].recipientAddress, amount - leftoverAmt);
+        tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount - leftoverAmt);
         contractEthBalance -= amount - leftoverAmt;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
         // transfer end, check 
-        
-        delete ListingRequests[requestId]; 
-        
+        if (Listings[listingId].amt - amount < 0) {
+            ListingRequests[requestId].requestAmt = leftoverAmt; 
+       
+        } else {
+            delete ListingRequests[requestId]; 
+        }
         Listings[listingId].amt -= amount;
-
         if (Listings[listingId].amt  < 1) { 
             emit tokenUnlisting(listingId);
             unlist(listingId);
         }
+        return leftoverAmt;
+
+    
 
     }
     
     //add request to listing
-    function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validTokenOnly(listingId){
+    function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validTokenOnly(listingId) isActive {
         require(tx.origin != Listings[listingId].donorAddress, "You cannot request for your own token, try unlisting instead!");
-        state memory newState = state(recipientId, amt, false, deadline, tx.origin, true);
+        uint expirationTime = block.timestamp + deadline * (1 days);
+        state memory newState = state(recipientId, amt, false, deadline, tx.origin, true, expirationTime);
         ListingRequests[requestId] = newState;
         Listings[listingId].requestIdList.push(requestId);
         emit requestAdded(listingId, requestId);
     }
+
 
     // create token + list 
     function createToken(uint256 donorId, uint256 amt, string memory category) public payable returns (uint256) {

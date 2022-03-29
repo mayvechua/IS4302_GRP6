@@ -23,7 +23,7 @@ contract Donor {
     mapping(uint256 => uint256[]) public listingsCreated; // donorId => list of listingId that donor owns
 
     bool internal locked = false;
-    bool public contractStopped = false;
+    bool internal contractStopped = true;
 
     constructor (DonationMarket marketAddress, Recipient recipientAddress, Token tokenAddress) public {
         marketContract = marketAddress;
@@ -79,7 +79,7 @@ contract Donor {
 
         uint256 listingId = marketContract.createToken(donorId, amt, category);
         listingsCreated[donorId].push(listingId);
-        tokenContract.transfer(tx.origin, marketContract.getOwner(), amt);
+        tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
     }
 
@@ -98,7 +98,7 @@ contract Donor {
     }
 
     //Emergency Stop enabled in approve 
-    function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public payable {
+    function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public {
         marketContract.approve(requestId, listingId);
         
         address donorAdd = donors[donorId].owner;
