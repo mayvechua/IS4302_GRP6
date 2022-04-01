@@ -14,8 +14,6 @@ contract Donor {
     DonorStorage donorStorage;
     address contractOwner;
 
-    mapping(uint256 => uint256[]) public listingsCreated; // donorId => list of listingId that donor owns
-
     bool internal locked = false;
     bool public contractStopped = false;
 
@@ -34,7 +32,7 @@ contract Donor {
     ) public returns(uint256) {
         
         // create and add store donor in donorStorage
-        uint256 newDonorId = donorStorage.storeDonor(name, password);
+        uint256 newDonorId = donorStorage.createDonor(name, password);
         emit createdDonor(newDonorId);
         return newDonorId;  
     }
@@ -64,7 +62,7 @@ contract Donor {
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
         uint256 listingId = marketContract.createToken(donorId, amt, category);
-        listingsCreated[donorId].push(listingId);
+        donorStorage.addListingToDonor(donorId, listingId);
         tokenContract.transfer(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
     }
@@ -86,7 +84,6 @@ contract Donor {
     //Emergency Stop enabled in approve 
     function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public payable {
         marketContract.approve(requestId, listingId);
-        
         address donorAdd = donorStorage.getOwner(donorId);
         recipientContract.completeRequest(requestId, listingId, donorAdd);
      
@@ -96,9 +93,10 @@ contract Donor {
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
         uint256[] memory activeListing;
         uint8 counter = 0;
-        for (uint8 i=0; i < listingsCreated[donorId].length;  i++) {
-            if (marketContract.checkListing(listingsCreated[donorId][i])) {
-                activeListing[counter] =  listingsCreated[donorId][i];
+        uint256[] memory currentListings = donorStorage.getListings(donorId);
+        for (uint8 i=0; i < currentListings.length;  i++) {
+            if (marketContract.checkListing(currentListings[i])) {
+                activeListing[counter] = currentListings[i];
                 counter ++;
             }
         }
