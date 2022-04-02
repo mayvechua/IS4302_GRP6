@@ -6,22 +6,24 @@ contract DonorStorage {
         address owner;
         string username;
         string pw;
+        uint256[] listings;
     }
 
     address owner = msg.sender; // set deployer as owner of storage
     uint256 public numDonors = 0; // total number of donors
     mapping(uint256 => donor) public donors; // donors
-    mapping(uint256 => uint256[]) public donorListings; // listings for each unique donor
 
     // stores new donor into mapping
     function createDonor (
         string memory name,
         string memory password
     ) public returns(uint256) {
+        uint256[] memory initListingsArray;
         donor memory newDonor = donor(
                 msg.sender, // donor address
                 name,
-                password
+                password,
+                initListingsArray
             );
             uint256 newDonorId = numDonors++;
             donors[newDonorId] = newDonor; //commit to state variable
@@ -40,12 +42,12 @@ contract DonorStorage {
 
     // add new listingid to corresponding donor
     function addListingToDonor (uint256 donorId, uint256 listingId) public {
-        donorListings[donorId].push(listingId);
+        donors[donorId].listings.push(listingId);
     }
 
     // get collection of listings for donor 
     function getListings (uint256 donorId) public view returns(uint256[] memory) {
-        return donorListings[donorId];
+        return donors[donorId].listings;
     }
 
 }
