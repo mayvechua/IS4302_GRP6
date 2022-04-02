@@ -60,8 +60,8 @@ contract DonationMarket {
 
     //Security Functions 
 
-    bool internal locked;
-    bool isStopped = false;
+    bool internal locked = false;
+    bool internal isStopped = false;
 
     modifier noReentrancy() {
         require(!locked, "No re-entrancy");
@@ -114,10 +114,10 @@ contract DonationMarket {
 
     //Events
     event transferred(uint256 listingId, address recipient);
-    event tokenUnlisting(uint256 listingId);
+    event listingUnlisting(uint256 listingId);
     event requestAdded(uint256 listingId, uint256 requestId);
-    event tokenCreated(uint256 listingId);
-    event tokenUnlisted(uint256 listingId); 
+    event listingCreated(uint256 listingId);
+    event listingUnlisted(uint256 listingId); 
 
 
     //Automatic Deprecation of listing and unlisting (check the deadline)
@@ -146,7 +146,7 @@ contract DonationMarket {
         tokenContract.transferToken(owner, tx.origin, Listings[listingId].amt);
         contractEthBalance -= Listings[listingId].amt;
         locked = false;
-        emit tokenUnlisted(listingId);
+        emit listingUnlisted(listingId);
       
         
     }
@@ -159,22 +159,17 @@ contract DonationMarket {
         //transfer tokens
         locked = true;
         uint256 amount = ListingRequests[requestId].requestAmt;
-        uint256 leftoverAmt= Listings[listingId].amt - amount;
-        require(contractEthBalance >= amount - leftoverAmt, "Insufficient balance in contract pool!");
-        tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount - leftoverAmt);
-        contractEthBalance -= amount - leftoverAmt;
+        uint256 leftoverAmt = Listings[listingId].amt - amount;
+        require(leftoverAmt == 0, "Insufficient balance in listing to approve request!");
+        tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount);
+        contractEthBalance -= amount;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
         // transfer end, check 
-        if (Listings[listingId].amt - amount < 0) {
-            ListingRequests[requestId].requestAmt = leftoverAmt; 
-       
-        } else {
-            delete ListingRequests[requestId]; 
-        }
+        delete ListingRequests[requestId]; 
         Listings[listingId].amt -= amount;
         if (Listings[listingId].amt  < 1) { 
-            emit tokenUnlisting(listingId);
+            emit listingUnlisting(listingId);
             unlist(listingId);
         }
         return leftoverAmt;
@@ -194,16 +189,16 @@ contract DonationMarket {
     }
 
 
-    // create token + list 
-    function createToken(uint256 donorId, uint256 amt, string memory category) public payable returns (uint256) {
+    // create lsiting + list 
+    function createListing(uint256 donorId, uint256 amt, string memory category) public returns (uint256) {
         require(contractEthBalance <= balanceLimit, "The limited amount of ETH stored in this contract is reached!");
         contractEthBalance += amt;
         uint256[] memory recipientList;
         uint256 listingId = listingCount;
         listingCount += 1;
-        listing memory newToken = listing(donorId,tx.origin, category, amt,recipientList, true);
-        Listings[listingId]= newToken;
-        emit tokenCreated(listingId);
+        listing memory newListing = listing(donorId,tx.origin, category, amt,recipientList, true);
+        Listings[listingId]= newListing;
+        emit listingCreated(listingId);
         return listingId;
 
     }

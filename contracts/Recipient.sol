@@ -117,7 +117,7 @@ contract Recipient {
         
     }
 
-    //TODO: revisit the logic
+
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
         // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
 
@@ -128,8 +128,6 @@ contract Recipient {
         recipientStorage.emptyRecipientWallet(recipientId);
         recipientStorage.removeWithdrawal(recipientId);
         cashOutTokens(listingAmt);
-
-        // unlock after the transaction is completed
         locked = false;
     }
 
@@ -177,9 +175,7 @@ contract Recipient {
     //     numRequests -=1;
     // }
 
-    function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
-        return recipients[recipientId].wallet;
-    }
+
 
 
     /*
@@ -187,7 +183,8 @@ contract Recipient {
     UNUSED FUNCTIONS
 
     function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
-        uint256[] memory activeRequest;
+        require(recipients[recipientId].activeRequests.length >0 ,"you do not have any active requests");
+        uint256[] memory activeRequest = new uint256[](recipients[recipientId].activeRequests.length);
         uint8 counter = 0;
         for (uint8 i=0; i < recipients[recipientId].activeRequests.length;  i++) {
             if (requests[recipients[recipientId].activeRequests[i]].isValue) {
