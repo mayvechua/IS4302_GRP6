@@ -41,9 +41,9 @@ contract Recipient {
 
     uint256 public numRecipients = 0;
     uint256 public numRequests = 0;
-    mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request) public requests; // hash(recipientID, username,pw, requestID)
-    mapping(uint256 => request) public withdrawalRequests; // available only for 7 days
+    mapping(uint256 => recipient) recipients;
+    mapping(uint256 => request) requests; // hash(recipientID, username,pw, requestID)
+    mapping(uint256 => request) withdrawalRequests; // available only for 7 days from time of approval
 
     // mapping(uint256 => listingState[]) public listingsApproved;
     // mapping(uint256 => listingState[]) public listingsNotApproved;
@@ -141,18 +141,13 @@ contract Recipient {
     }
 
     function refundToken() public whenDeprecated {
-
         for (uint recId; recId < numRecipients; recId++) {
             for (uint req; req < recipients[recId].withdrawals.length; req++) {
                 if (block.timestamp > withdrawalRequests[recipients[recId].withdrawals[req]].expireAt) {
                     uint256 amt = withdrawalRequests[req].amt;
-
                     recipients[req].wallet -= amt; // deduct the expired tokens from the recipient's wallet
-
                     transferPayment(recipients[recId].owner, withdrawalRequests[req].donorAddress, amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
-
                     locked = false;
-
                     delete withdrawalRequests[req];
                 }
             }
@@ -162,17 +157,13 @@ contract Recipient {
         
     }
 
-    //TODO: revisit the logic
+
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
-        // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
         require(recipients[recipientId].wallet > 0, "Invalid amount to be withdrawn from wallet!");
         uint256 listingAmt = recipients[recipientId].wallet;
-
         recipients[recipientId].wallet = 0;
         delete withdrawalRequests[recipientId]; // all tokens withdrawn
         cashOutTokens(listingAmt);
-
-        // unlock after the transaction is completed
         locked = false;
     }
 
@@ -207,7 +198,7 @@ contract Recipient {
         emit requestedDonation(recipientId, listingId, requestInfo.amt, requestInfo.deadline, requestId);
     }
 
-    function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public {
+    function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public contractOwnerOnly{
         withdrawalRequests[requestId] = requests[requestId];
         withdrawalRequests[requestId].expireAt = block.timestamp + wait_period; // withdrawal of tokens allowed for 7 days from time of completion 
 
@@ -225,9 +216,7 @@ contract Recipient {
         numRequests -=1;
     }
 
-    function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
-        return recipients[recipientId].wallet;
-    }
+
 
     function getRecipientAddress(uint256 recipientId) public view validRecipientId(recipientId) returns (address) {
         return recipients[recipientId].owner;
@@ -235,7 +224,8 @@ contract Recipient {
 
 
     function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
-        uint256[] memory activeRequest;
+        require(recipients[recipientId].activeRequests.length >0 ,"you do not have any active requests");
+        uint256[] memory activeRequest = new uint256[](recipients[recipientId].activeRequests.length);
         uint8 counter = 0;
         for (uint8 i=0; i < recipients[recipientId].activeRequests.length;  i++) {
             if (requests[recipients[recipientId].activeRequests[i]].isValue) {

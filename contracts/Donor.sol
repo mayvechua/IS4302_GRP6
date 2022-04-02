@@ -19,8 +19,8 @@ contract Donor {
     address contractOwner;
 
     uint256 public numDonors = 0;
-    mapping(uint256 => donor) public donors;
-    mapping(uint256 => uint256[]) public listingsCreated; // donorId => list of listingId that donor owns
+    mapping(uint256 => donor) donors;
+    mapping(uint256 => uint256[]) listingsCreated; // donorId => list of listingId that donor owns
 
     bool internal locked = false;
     bool internal contractStopped = true;
@@ -68,16 +68,17 @@ contract Donor {
     
     //modifier to ensure that the donor is valid
     modifier validDonorId(uint256 donorId) {
-        require(donorId < numDonors);
+        require(donorId < numDonors, "Invalid donor Id");
+        require(donors[donorId].owner == msg.sender, "You are not the donor!");
         _;
     }
 
 
-    function createToken(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
+    function createListing(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
         require(tokenContract.checkCredit() >= amt, "Donor does not have enough ether to create listing!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
-        uint256 listingId = marketContract.createToken(donorId, amt, category);
+        uint256 listingId = marketContract.createListing(donorId, amt, category);
         listingsCreated[donorId].push(listingId);
         tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
@@ -112,9 +113,10 @@ contract Donor {
     function getDonorAddress(uint256 donorId) public view returns (address) { // ownerOnly?
         return donors[donorId].owner;
     }
-
+  
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
-        uint256[] memory activeListing;
+        require(listingsCreated[donorId].length > 0, "you do not have any listing");
+        uint256[] memory activeListing =  new uint256[](listingsCreated[donorId].length);
         uint8 counter = 0;
         for (uint8 i=0; i < listingsCreated[donorId].length;  i++) {
             if (marketContract.checkListing(listingsCreated[donorId][i])) {
