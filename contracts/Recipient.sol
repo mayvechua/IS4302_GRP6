@@ -2,36 +2,13 @@
 pragma solidity >=0.6.1;
 import "./DonationMarket.sol";
 import "./Token.sol";
+import "./RecipientStorage.sol";
 
 contract Recipient {
 
-    enum recipientState {created, requesting, receivedDonation}
-
-    struct recipient {
-        recipientState state;
-        address owner;
-        string username;
-        string pw;
-        uint256 wallet; // amt of ether in wallet
-        uint256[] activeRequests;
-        uint256[] withdrawals;
-        
-    }
-
-    struct request {
-        uint256 requestID;
-        uint256 recipientId;
-        uint256[] listingsId;
-        uint256 amt;
-        uint8 deadline;
-        string category;
-        bool isValue; 
-        uint expireAt; // time from approved to expired 
-        address donorAddress; // to refund the tokens after the expiration date
-    }
-
     Token tokenContract;
     DonationMarket marketContract;
+    RecipientStorage recipientStorage;
     address contractOwner;
 
     bool internal locked = false;
@@ -39,19 +16,11 @@ contract Recipient {
     uint constant wait_period = 7 days;
     uint contract_maintenance; // time tracker, deprecate the withdrawToken() and check for expiration daily
 
-    uint256 public numRecipients = 0;
-    uint256 public numRequests = 0;
-    mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request) public requests; // hash(recipientID, username,pw, requestID)
-    mapping(uint256 => request) public withdrawalRequests; // available only for 7 days
-
-    // mapping(uint256 => listingState[]) public listingsApproved;
-    // mapping(uint256 => listingState[]) public listingsNotApproved;
-
     
-   constructor (Token tokenAddress, DonationMarket marketAddress) public {
-       tokenContract = tokenAddress;
+   constructor (Token tokenAddress, DonationMarket marketAddress, RecipientStorage storageAddress) public {
+        tokenContract = tokenAddress;
         marketContract = marketAddress;
+        recipientStorage = storageAddress;
         contractOwner = msg.sender;
         autoDeprecate(); // set daily contract check
     }
@@ -61,20 +30,7 @@ contract Recipient {
         string memory name,
         string memory password
     ) public returns(uint256) {
-        uint256[] memory setActiveRequest;
-        uint256[] memory setWithDrawal;
-        recipient memory newRecipient = recipient(
-            recipientState.created,
-            msg.sender, // recipient address
-            name,
-            password,
-            0, // wallet
-            setActiveRequest,
-            setWithDrawal
-        );
-        
-        uint256 newRecipientId = numRecipients++;
-        recipients[newRecipientId] = newRecipient; 
+        uint256 newRecipientId = recipientStorage.createRecipient(name, password); 
         return newRecipientId;   
     }
 
@@ -83,7 +39,7 @@ contract Recipient {
 
     //modifier to ensure a function is callable only by its owner    
     modifier ownerOnly(uint256 recipientId) {
-        require(recipients[recipientId].owner == msg.sender);
+        require(recipientStorage.getRecipientOwner(recipientId) == msg.sender);
         _;
     }
 
@@ -102,7 +58,7 @@ contract Recipient {
     }
     
     modifier validRecipientId(uint256 recipientId) {
-        require(recipientId < numRecipients);
+        require(recipientId < recipientStorage.getTotalRecipients());
         _;
     }
 
@@ -141,19 +97,18 @@ contract Recipient {
     }
 
     function refundToken() public whenDeprecated {
-
-        for (uint recId; recId < numRecipients; recId++) {
-            for (uint req; req < recipients[recId].withdrawals.length; req++) {
-                if (block.timestamp > withdrawalRequests[recipients[recId].withdrawals[req]].expireAt) {
-                    uint256 amt = withdrawalRequests[req].amt;
-
-                    recipients[req].wallet -= amt; // deduct the expired tokens from the recipient's wallet
-
-                    transferPayment(recipients[recId].owner, withdrawalRequests[req].donorAddress, amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
+        for (uint recId; recId < recipientStorage.getTotalRecipients(); recId++) {
+            uint256[] memory withdrawals = recipientStorage.getRecipientWithdrawals(recId);
+            for (uint req; req < withdrawals.length; req++) {
+                uint256 withdrawalId = withdrawals[req];
+                if (block.timestamp > recipientStorage.getWithdrawalRecipient(withdrawalId)) {
+                    uint256 amt = recipientStorage.getWithdrawalAmount(withdrawalId);
+                    recipientStorage.modifyRecipientWallet(recipientStorage.getWithdrawalRecipient(withdrawalId), amt, "-"); // deduct the expired tokens from the recipient's wallet
+                    transferPayment(recipientStorage.getRecipientOwner(recId), recipientStorage.getWithdrawalDonor(withdrawalId), amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
 
                     locked = false;
 
-                    delete withdrawalRequests[req];
+                    recipientStorage.removeWithdrawal(withdrawalId);
                 }
             }
         }
@@ -165,11 +120,13 @@ contract Recipient {
     //TODO: revisit the logic
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
         // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
-        require(recipients[recipientId].wallet > 0, "Invalid amount to be withdrawn from wallet!");
-        uint256 listingAmt = recipients[recipientId].wallet;
 
-        recipients[recipientId].wallet = 0;
-        delete withdrawalRequests[recipientId]; // all tokens withdrawn
+        uint256 listingAmt = recipientStorage.getRecipientWallet(recipientId);
+        require(listingAmt > 0, "Invalid amount to be withdrawn from wallet!");
+        
+
+        recipientStorage.emptyRecipientWallet(recipientId);
+        recipientStorage.removeWithdrawal(recipientId);
         cashOutTokens(listingAmt);
 
         // unlock after the transaction is completed
@@ -179,53 +136,45 @@ contract Recipient {
     //when developer (oracle) approve of the proof of usage, it will be tagged to a request to prevent duplicative usage of proof of usage
     function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline, string memory category) public returns (uint256) {
         require(msg.sender == contractOwner, "you are not allowed to use this function");
-        require(requestedAmt > 0, "minimum request need to contain at least 1 Token");
-        require(requestedAmt < 100, "Requested Amounted hit limit");
-        uint256 requestId = numRequests;
-        numRequests +=1;
-        recipients[recipientId].activeRequests.push(requestId);
-        uint256[] memory listings;
-        request memory newRequest = request (requestId, recipientId,listings,requestedAmt, deadline, category, true, block.timestamp, address(0));
-        requests[requestId] = newRequest;
-        recipients[recipientId].activeRequests.push(requestId);
+        uint256 requestId = recipientStorage.createRequest(recipientId, requestedAmt, deadline, category);
         return requestId;
     }
 
     function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) {
         //checks
-        require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(requests[requestId].category)),  
+        require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(recipientStorage.getRequestCategory(requestId))),  
         "you are not eligible to request for this listing");
-        request memory requestInfo = requests[requestId];
-            for (uint8 i; i< requestInfo.listingsId.length; i++) {
-                require(requestInfo.listingsId[i] == listingId, "You have already request for this listing!"); 
-            }
-        marketContract.addRequest(listingId, recipientId, requestInfo.amt, requestInfo.deadline, requestId);
-        requests[requestId].listingsId.push(listingId);
-
-        recipients[recipientId].state = recipientState.requesting;
-
-        emit requestedDonation(recipientId, listingId, requestInfo.amt, requestInfo.deadline, requestId);
+        require(recipientStorage.verifyRequestListing(requestId, listingId), "You have already requested for this listing");
+        uint8 deadline = recipientStorage.getRequestDeadline(requestId);
+        uint256 amount = recipientStorage.getRequestAmount(requestId);
+        marketContract.addRequest(listingId, recipientId, amount, deadline, requestId);
+        recipientStorage.addListingToRequest(requestId, listingId);
+        // recipients[recipientId].state = recipientState.requesting;
+        emit requestedDonation(recipientId, listingId, amount, deadline, requestId);
     }
 
     function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public {
-        withdrawalRequests[requestId] = requests[requestId];
-        withdrawalRequests[requestId].expireAt = block.timestamp + wait_period; // withdrawal of tokens allowed for 7 days from time of completion 
+        recipientStorage.createWithdrawal(requestId); // add withdrawal
+        uint256 withdrawalId = requestId;
+        recipientStorage.addWithdrawalExpiry(withdrawalId, block.timestamp + wait_period); // withdrawal of tokens allowed for 7 days from time of completion 
+        
+        // get recipient of withdrawal
+        uint256 recipientId = recipientStorage.getWithdrawalRecipient(withdrawalId);
+        // facilitate withdrawal
+        uint256 amount = recipientStorage.getWithdrawalAmount(withdrawalId);
+        recipientStorage.modifyRecipientWallet(recipientId, amount, "+");
+        recipientStorage.addWithdrawalRefundAddress(withdrawalId, donorAddress);
+        // remove request
+        recipientStorage.removeRequest(requestId);
 
-        recipients[withdrawalRequests[requestId].recipientId].wallet += withdrawalRequests[requestId].amt;
-        withdrawalRequests[requestId].donorAddress = donorAddress;
-
-        delete requests[requestId];
         emit completedRequest(requestId, listingId);
     }
 
-    function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
-        return recipients[recipientId].wallet;
-    }
 
-    function getRecipientAddress(uint256 recipientId) public view validRecipientId(recipientId) returns (address) {
-        return recipients[recipientId].owner;
-    }
 
+    /*
+
+    UNUSED FUNCTIONS
 
     function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
         uint256[] memory activeRequest;
@@ -238,10 +187,8 @@ contract Recipient {
         }
         return activeRequest;
     }
+    */
 
-    function getRequestedListing(uint256 requestId) public view returns (uint256[] memory) {
-        return requests[requestId].listingsId;
-    }
      // self-destruct function 
      function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(contractOwner);
