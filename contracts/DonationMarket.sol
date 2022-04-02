@@ -154,24 +154,32 @@ contract DonationMarket {
 
     //approve function - send eth to recipients, minus amt from token 
     function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency returns (uint256){
-       require(!locked, "No re-entrancy");
+        require(!locked, "No re-entrancy");
         require(ListingRequests[requestId].isValue, "request has been taken down");
         //transfer tokens
         locked = true;
         uint256 amount = ListingRequests[requestId].requestAmt;
         uint256 leftoverAmt= Listings[listingId].amt - amount;
-        require(contractEthBalance >= amount, "Insufficient balance in contract pool!");
-        tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount);
-        contractEthBalance -= amount;
+        require(contractEthBalance >= amount - leftoverAmt, "Insufficient balance in contract pool!");
+        tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount - leftoverAmt);
+        contractEthBalance -= amount - leftoverAmt;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
-
+        // transfer end, check 
+        if (Listings[listingId].amt - amount < 0) {
+            ListingRequests[requestId].requestAmt = leftoverAmt; 
+       
+        } else {
+            delete ListingRequests[requestId]; 
+        }
         Listings[listingId].amt -= amount;
         if (Listings[listingId].amt  < 1) { 
             emit tokenUnlisting(listingId);
             unlist(listingId);
         }
         return leftoverAmt;
+
+    
 
     }
     

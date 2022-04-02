@@ -12,7 +12,7 @@ contract Recipient {
     address contractOwner;
 
     bool internal locked = false;
-    bool public contractStopped = true;
+    bool public contractStopped = false;
     uint constant wait_period = 7 days;
     uint contract_maintenance; // time tracker, deprecate the withdrawToken() and check for expiration daily
 
@@ -177,9 +177,9 @@ contract Recipient {
     //     numRequests -=1;
     // }
 
-    // function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
-    //     return recipients[recipientId].wallet;
-    // }
+    function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
+        return recipients[recipientId].wallet;
+    }
 
 
     /*
