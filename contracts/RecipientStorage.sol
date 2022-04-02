@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.6.1;
 
 contract RecipientStorage {
 
     // should we use this state for requests instead? cos since each recipient has multiple 
-    enum recipientState {created, requesting, receivedDonation}
+    enum requestState {created, requesting, receivedDonation, expiredRequest}
 
     // unique beneficiary
     struct recipient {
@@ -55,13 +56,14 @@ contract RecipientStorage {
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
         string memory name,
-        string memory password
+        string memory password,
+        address sender
     ) public returns(uint256) {
         uint256[] memory setActiveRequest;
         uint256[] memory setWithDrawal;
         recipient memory newRecipient = recipient(
             // recipientState.created,
-            msg.sender, // recipient address
+            sender, // recipient address
             name,
             password,
             0, // wallet
@@ -73,6 +75,9 @@ contract RecipientStorage {
         return newRecipientId;   
     }
 
+    event pushedToActive(uint256[] activeRequests);
+    event createdRequest(request newRequest);
+
     // create a request for a recipient. requestsid will be stored within recipient for access, request itself will be stored in another mapping
     function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline, string memory category) public returns (uint256) {
         require(requestedAmt > 0, "minimum request need to contain at least 1 Token");
@@ -80,10 +85,14 @@ contract RecipientStorage {
         uint256 requestId = numRequests;
         numRequests +=1;
         recipients[recipientId].activeRequests.push(requestId);
+
+        emit pushedToActive(recipients[recipientId].activeRequests);
+
         uint256[] memory listings;
-        request memory newRequest = request (requestId, recipientId,listings,requestedAmt, deadline, category, true);
-        requests[requestId] = newRequest;
-        recipients[recipientId].activeRequests.push(requestId);
+        requests[requestId] = request(requestId, recipientId,listings,requestedAmt, deadline, category, true);
+
+        emit createdRequest(requests[requestId]);
+
         return requestId;
     }
 

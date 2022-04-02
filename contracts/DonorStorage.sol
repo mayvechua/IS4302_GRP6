@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.6.1;
 
 contract DonorStorage {
@@ -16,11 +17,12 @@ contract DonorStorage {
     // stores new donor into mapping
     function createDonor (
         string memory name,
-        string memory password
+        string memory password,
+        address sender
     ) public returns(uint256) {
         uint256[] memory initListingsArray;
         donor memory newDonor = donor(
-                msg.sender, // donor address
+                sender, // donor address
                 name,
                 password,
                 initListingsArray

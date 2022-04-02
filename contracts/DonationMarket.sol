@@ -60,8 +60,8 @@ contract DonationMarket {
 
     //Security Functions 
 
-    bool internal locked = false;
-    bool internal isStopped = false;
+    bool internal locked;
+    bool isStopped = false;
 
     modifier noReentrancy() {
         require(!locked, "No re-entrancy");
@@ -70,7 +70,7 @@ contract DonationMarket {
 
 
     modifier stoppedInEmergency {
-        require(!isStopped);
+        require(!isStopped, "contract stopped!");
         _;
     }
 
@@ -93,11 +93,13 @@ contract DonationMarket {
     }
 
     modifier isActive {
-        if (! hasExpired()) _;
+        require(! hasExpired(), "Not active!");
+        _;
     }
 
     modifier whenDeprecated {
-        if (hasExpired()) _;
+        require(hasExpired(), "has not expired!");
+        _;
     }
 
     //setter function for contract balance limit
@@ -114,10 +116,10 @@ contract DonationMarket {
 
     //Events
     event transferred(uint256 listingId, address recipient);
-    event listingUnlisting(uint256 listingId);
+    event tokenUnlisting(uint256 listingId);
     event requestAdded(uint256 listingId, uint256 requestId);
-    event listingCreated(uint256 listingId);
-    event listingUnlisted(uint256 listingId); 
+    event tokenCreated(uint256 listingId);
+    event tokenUnlisted(uint256 listingId); 
 
 
     //Automatic Deprecation of listing and unlisting (check the deadline)
@@ -146,7 +148,7 @@ contract DonationMarket {
         tokenContract.transferToken(owner, tx.origin, Listings[listingId].amt);
         contractEthBalance -= Listings[listingId].amt;
         locked = false;
-        emit listingUnlisted(listingId);
+        emit tokenUnlisted(listingId);
       
         
     }
@@ -154,22 +156,21 @@ contract DonationMarket {
 
     //approve function - send eth to recipients, minus amt from token 
     function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency returns (uint256){
-        require(!locked, "No re-entrancy");
+       require(!locked, "No re-entrancy");
         require(ListingRequests[requestId].isValue, "request has been taken down");
         //transfer tokens
         locked = true;
         uint256 amount = ListingRequests[requestId].requestAmt;
-        uint256 leftoverAmt = Listings[listingId].amt - amount;
-        require(leftoverAmt == 0, "Insufficient balance in listing to approve request!");
+        uint256 leftoverAmt= Listings[listingId].amt - amount;
+        require(contractEthBalance >= amount, "Insufficient balance in contract pool!");
         tokenContract.transferToken(owner, ListingRequests[requestId].recipientAddress, amount);
         contractEthBalance -= amount;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
-        // transfer end, check 
-        delete ListingRequests[requestId]; 
+
         Listings[listingId].amt -= amount;
         if (Listings[listingId].amt  < 1) { 
-            emit listingUnlisting(listingId);
+            emit tokenUnlisting(listingId);
             unlist(listingId);
         }
         return leftoverAmt;
@@ -189,16 +190,16 @@ contract DonationMarket {
     }
 
 
-    // create lsiting + list 
-    function createListing(uint256 donorId, uint256 amt, string memory category) public returns (uint256) {
+    // create token + list 
+    function createToken(uint256 donorId, uint256 amt, string memory category) public payable returns (uint256) {
         require(contractEthBalance <= balanceLimit, "The limited amount of ETH stored in this contract is reached!");
         contractEthBalance += amt;
         uint256[] memory recipientList;
         uint256 listingId = listingCount;
         listingCount += 1;
-        listing memory newListing = listing(donorId,tx.origin, category, amt,recipientList, true);
-        Listings[listingId]= newListing;
-        emit listingCreated(listingId);
+        listing memory newToken = listing(donorId,tx.origin, category, amt,recipientList, true);
+        Listings[listingId]= newToken;
+        emit tokenCreated(listingId);
         return listingId;
 
     }

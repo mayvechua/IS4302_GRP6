@@ -15,9 +15,9 @@ contract Donor {
     address contractOwner;
 
     bool internal locked = false;
-    bool internal contractStopped = true;
+    bool internal contractStopped = false;
 
-    constructor (DonationMarket marketAddress, Recipient recipientAddress, Token tokenAddress, DonorStorage storageAddress) public {
+    constructor (Token tokenAddress, DonationMarket marketAddress, Recipient recipientAddress, DonorStorage storageAddress) public {
         marketContract = marketAddress;
         recipientContract = recipientAddress;
         tokenContract = tokenAddress;
@@ -32,7 +32,7 @@ contract Donor {
     ) public returns(uint256) {
         
         // create and add store donor in donorStorage
-        uint256 newDonorId = donorStorage.createDonor(name, password);
+        uint256 newDonorId = donorStorage.createDonor(name, password, msg.sender);
         emit createdDonor(newDonorId);
         return newDonorId;  
     }
@@ -52,23 +52,24 @@ contract Donor {
     
     //modifier to ensure that the donor is valid
     modifier validDonorId(uint256 donorId) {
-        require(donorId < donorStorage.getTotalOwners());
+        require(donorId < donorStorage.getTotalOwners(), "donorId is not valid!");
         _;
     }
 
 
-    function createListing(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
+    function createToken(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
         require(tokenContract.checkCredit() >= amt, "Donor does not have enough ether to create listing!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
         uint256 listingId = marketContract.createToken(donorId, amt, category);
         donorStorage.addListingToDonor(donorId, listingId);
-        tokenContract.transfer(tx.origin, marketContract.getOwner(), amt);
+        tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
     }
 
     modifier stoppedInEmergency {
-        if (!contractStopped) _;
+        require(!contractStopped, "contract stopped!");
+        _;
     }
 
 
@@ -81,18 +82,29 @@ contract Donor {
         contractStopped = !contractStopped;
     }
 
+    event marketApproved(uint256 requestId, uint256 listingId);
+    event approvedRecipient(uint256 requestId, uint256 listingId, address donorAdd);
+    event enteredApproval(uint256 requestId, uint256 listingId);
     //Emergency Stop enabled in approve 
     function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public {
+
+        emit enteredApproval(requestId, listingId);
+
         marketContract.approve(requestId, listingId);
+
+        emit marketApproved(requestId, listingId);
+
         address donorAdd = donorStorage.getOwner(donorId);
+
         recipientContract.completeRequest(requestId, listingId, donorAdd);
+
+        emit approvedRecipient(requestId, listingId, donorAdd);
      
         emit approvedRecipientRequest(listingId, recipientId, donorId, requestId);
     }
 
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
-        require(listingsCreated[donorId].length > 0, "you do not have any listing");
-        uint256[] memory activeListing =  new uint256[](listingsCreated[donorId].length);
+        uint256[] memory activeListing;
         uint8 counter = 0;
         uint256[] memory currentListings = donorStorage.getListings(donorId);
         for (uint8 i=0; i < currentListings.length;  i++) {
@@ -102,6 +114,10 @@ contract Donor {
             }
         }
         return activeListing; 
+    }
+
+    function getListings(uint256 donorId) public view returns (uint256[] memory) {
+        return donorStorage.getListings(donorId);
     }
 
 

@@ -30,7 +30,7 @@ contract Recipient {
         string memory name,
         string memory password
     ) public returns(uint256) {
-        uint256 newRecipientId = recipientStorage.createRecipient(name, password); 
+        uint256 newRecipientId = recipientStorage.createRecipient(name, password, msg.sender); 
         return newRecipientId;   
     }
 
@@ -39,12 +39,13 @@ contract Recipient {
 
     //modifier to ensure a function is callable only by its owner    
     modifier ownerOnly(uint256 recipientId) {
-        require(recipientStorage.getRecipientOwner(recipientId) == msg.sender);
+        require(recipientStorage.getRecipientOwner(recipientId) == msg.sender, "you are not the recipient!");
         _;
     }
 
     modifier stoppedInEmergency {
-        if (!contractStopped) _;
+        require(!contractStopped, "contract stopped!");
+         _;
     }
 
 
@@ -58,7 +59,7 @@ contract Recipient {
     }
     
     modifier validRecipientId(uint256 recipientId) {
-        require(recipientId < recipientStorage.getTotalRecipients());
+        require(recipientId <= recipientStorage.getTotalRecipients(), "recipientId does not exist");
         _;
     }
 
@@ -72,11 +73,13 @@ contract Recipient {
     }
 
     modifier isActive {
-        if (! hasExpired()) _;
+        require(! hasExpired(), "Not active!");
+        _;
     }
 
     modifier whenDeprecated {
-        if (hasExpired()) _;
+        require(hasExpired(), "has not expired!");
+        _;
     }
 
     // mutex: prevent re-entrant
@@ -117,7 +120,7 @@ contract Recipient {
         
     }
 
-
+    //TODO: revisit the logic
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
         // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
 
@@ -128,23 +131,36 @@ contract Recipient {
         recipientStorage.emptyRecipientWallet(recipientId);
         recipientStorage.removeWithdrawal(recipientId);
         cashOutTokens(listingAmt);
+
+        // unlock after the transaction is completed
         locked = false;
     }
+
+    event requestCreated(uint256 requestId);
 
     //when developer (oracle) approve of the proof of usage, it will be tagged to a request to prevent duplicative usage of proof of usage
     function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline, string memory category) public returns (uint256) {
         require(msg.sender == contractOwner, "you are not allowed to use this function");
         uint256 requestId = recipientStorage.createRequest(recipientId, requestedAmt, deadline, category);
+        emit requestCreated(requestId);
         return requestId;
     }
+
+    event enteredRequest(bool entered);
+    event addingToMarket(uint8 deadline, uint256 amount);
 
     function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) {
         //checks
         require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(recipientStorage.getRequestCategory(requestId))),  
         "you are not eligible to request for this listing");
         require(recipientStorage.verifyRequestListing(requestId, listingId), "You have already requested for this listing");
+        emit enteredRequest(true);
+
         uint8 deadline = recipientStorage.getRequestDeadline(requestId);
         uint256 amount = recipientStorage.getRequestAmount(requestId);
+
+        emit addingToMarket(deadline, amount);
+
         marketContract.addRequest(listingId, recipientId, amount, deadline, requestId);
         recipientStorage.addListingToRequest(requestId, listingId);
         // recipients[recipientId].state = recipientState.requesting;
@@ -175,7 +191,9 @@ contract Recipient {
     //     numRequests -=1;
     // }
 
-
+    // function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
+    //     return recipients[recipientId].wallet;
+    // }
 
 
     /*
@@ -183,8 +201,7 @@ contract Recipient {
     UNUSED FUNCTIONS
 
     function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
-        require(recipients[recipientId].activeRequests.length >0 ,"you do not have any active requests");
-        uint256[] memory activeRequest = new uint256[](recipients[recipientId].activeRequests.length);
+        uint256[] memory activeRequest;
         uint8 counter = 0;
         for (uint8 i=0; i < recipients[recipientId].activeRequests.length;  i++) {
             if (requests[recipients[recipientId].activeRequests[i]].isValue) {
