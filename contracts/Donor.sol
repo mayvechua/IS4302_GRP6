@@ -61,7 +61,7 @@ contract Donor {
         require(tokenContract.checkCredit() >= amt, "Donor does not have enough ether to create listing!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
-        uint256 listingId = marketContract.createToken(donorId, amt, category);
+        uint256 listingId = marketContract.createListing(donorId, amt, category);
         donorStorage.addListingToDonor(donorId, listingId);
         tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
@@ -82,32 +82,23 @@ contract Donor {
         contractStopped = !contractStopped;
     }
 
-    event marketApproved(uint256 requestId, uint256 listingId);
-    event approvedRecipient(uint256 requestId, uint256 listingId, address donorAdd);
-    event enteredApproval(uint256 requestId, uint256 listingId);
     //Emergency Stop enabled in approve 
-    function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public {
-
-        emit enteredApproval(requestId, listingId);
+    function approveRecipientRequest(uint256 requestId, uint256 listingId, uint256 donorId, uint256 recipientId) validDonorId(donorId) stoppedInEmergency public {
 
         marketContract.approve(requestId, listingId);
-
-        emit marketApproved(requestId, listingId);
-
         address donorAdd = donorStorage.getOwner(donorId);
-
         recipientContract.completeRequest(requestId, listingId, donorAdd);
-
-        emit approvedRecipient(requestId, listingId, donorAdd);
      
         emit approvedRecipientRequest(listingId, recipientId, donorId, requestId);
     }
 
+
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
-        uint256[] memory activeListing;
         uint8 counter = 0;
         uint256[] memory currentListings = donorStorage.getListings(donorId);
-        for (uint8 i=0; i < currentListings.length;  i++) {
+        uint256 n = currentListings.length;
+        uint256[] memory activeListing = new uint[](n);
+        for (uint8 i=0; i < n;  i++) {
             if (marketContract.checkListing(currentListings[i])) {
                 activeListing[counter] = currentListings[i];
                 counter ++;
@@ -117,7 +108,8 @@ contract Donor {
     }
 
     function getListings(uint256 donorId) public view returns (uint256[] memory) {
-        return donorStorage.getListings(donorId);
+        uint256[] memory currentListings = donorStorage.getListings(donorId);
+        return currentListings;
     }
 
 

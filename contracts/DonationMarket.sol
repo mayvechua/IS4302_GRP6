@@ -42,13 +42,13 @@ contract DonationMarket {
 
 
     //Access Restrictions
-    modifier tokenDonorOnly(uint256 listingId) {
+    modifier listingDonorOnly(uint256 listingId) {
         require(tx.origin == Listings[listingId].donorAddress, "You are not the donor of this token!");
         _;
     }
 
 
-    modifier validTokenOnly(uint256 listingId) {
+    modifier validListingOnly(uint256 listingId) {
         require(Listings[listingId].isValue, "Invalid Token!");
          _;
     }
@@ -135,11 +135,11 @@ contract DonationMarket {
     }
 
     //Core Functions
-    function cancelRequest(uint256 requestId, uint256 listingId) public validTokenOnly(listingId) {
+    function cancelRequest(uint256 requestId, uint256 listingId) public validListingOnly(listingId) {
         delete ListingRequests[requestId];
     }
 
-    function unlist(uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency {
+    function unlist(uint256 listingId) public  noReentrancy() validListingOnly(listingId) listingDonorOnly(listingId) stoppedInEmergency {
         require(!locked, "No re-entrancy");
         //TODO: unlist from Donation Market
         delete Listings[listingId];
@@ -155,7 +155,7 @@ contract DonationMarket {
     
 
     //approve function - send eth to recipients, minus amt from token 
-    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validTokenOnly(listingId) tokenDonorOnly(listingId) stoppedInEmergency returns (uint256){
+    function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validListingOnly(listingId) listingDonorOnly(listingId) stoppedInEmergency returns (uint256){
        require(!locked, "No re-entrancy");
         require(ListingRequests[requestId].isValue, "request has been taken down");
         //transfer tokens
@@ -167,6 +167,8 @@ contract DonationMarket {
         contractEthBalance -= amount;
         locked = false;
         emit transferred(listingId, ListingRequests[requestId].recipientAddress);
+    
+        delete ListingRequests[requestId];
 
         Listings[listingId].amt -= amount;
         if (Listings[listingId].amt  < 1) { 
@@ -180,7 +182,7 @@ contract DonationMarket {
     }
     
     //add request to listing
-    function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validTokenOnly(listingId) isActive {
+    function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validListingOnly(listingId) isActive {
         require(tx.origin != Listings[listingId].donorAddress, "You cannot request for your own token, try unlisting instead!");
         uint expirationTime = block.timestamp + deadline * (1 days);
         state memory newState = state(recipientId, amt, false, deadline, tx.origin, true, expirationTime);
@@ -190,8 +192,8 @@ contract DonationMarket {
     }
 
 
-    // create token + list 
-    function createToken(uint256 donorId, uint256 amt, string memory category) public payable returns (uint256) {
+    // create Listing + list 
+    function createListing(uint256 donorId, uint256 amt, string memory category) public returns (uint256) {
         require(contractEthBalance <= balanceLimit, "The limited amount of ETH stored in this contract is reached!");
         contractEthBalance += amt;
         uint256[] memory recipientList;
@@ -209,18 +211,20 @@ contract DonationMarket {
 
     //Getter Functions
     //getter function for the amt of each token
-     function getTokenAmt(uint256 listingId) public view  validTokenOnly(listingId) returns (uint256) {
+     function getListingAmt(uint256 listingId) public view  validListingOnly(listingId) returns (uint256) {
         return Listings[listingId].amt;
     }
 
 
     //getter function for the requests in each listing
-    function getRecipientRequest(uint256 listingId) public view tokenDonorOnly(listingId) validTokenOnly(listingId) returns (uint256[] memory) {
-        uint256[] memory activeRequest;
+    function getRecipientRequest(uint256 listingId) public view listingDonorOnly(listingId) validListingOnly(listingId) returns (uint256[] memory) {
+        uint n = Listings[listingId].requestIdList.length;
+        uint256[] memory activeRequest = new uint[](n);
         uint8 counter = 0;
-        for (uint8 i=0; i < Listings[listingId].requestIdList.length;  i++) {
-            if (ListingRequests[Listings[listingId].requestIdList[i]].isValue) {
-                activeRequest[counter] =  Listings[listingId].requestIdList[i];
+        for (uint8 i=0; i < n;  i++) {
+            uint256 id = Listings[listingId].requestIdList[i];
+            if (! ListingRequests[id].isCompleted) {
+                activeRequest[counter] =  id;
                 counter ++;
             }
         }
@@ -249,7 +253,7 @@ contract DonationMarket {
     
 
     //getter function for token category for matching algorithm 
-    function getCategory(uint256 listingId) public view validTokenOnly(listingId) returns (string memory) {
+    function getCategory(uint256 listingId) public view validListingOnly(listingId) returns (string memory) {
         return Listings[listingId].category;
     }
 

@@ -49,7 +49,7 @@ contract RecipientStorage {
 
 
     modifier ownerOnly(uint256 recipientId) {
-        require(getRecipientOwner(recipientId) == msg.sender);
+        require(getRecipientOwner(recipientId) == tx.origin); 
         _;
     }
 
@@ -128,7 +128,7 @@ contract RecipientStorage {
     }
 
     // modify wallet amount for recipient, operation = "+" for credit, operation = "-" for debit
-    function modifyRecipientWallet (uint256 recipientId, uint256 amount, string memory operation) ownerOnly(recipientId) public {
+    function modifyRecipientWallet (uint256 recipientId, uint256 amount, string memory operation) public {
         if (keccak256(abi.encodePacked(operation)) == keccak256(abi.encodePacked("+"))) {
             recipients[recipientId].wallet += amount;
         } else {
