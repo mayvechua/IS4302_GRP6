@@ -3,53 +3,37 @@ pragma solidity >=0.6.1;
 import "./Recipient.sol";
 import "./DonationMarket.sol";
 import "./Token.sol";
+import "./DonorStorage.sol";
 
 
 contract Donor {
 
-    struct donor {
-        address owner;
-        string username;
-        string pw;
-    }
-
     DonationMarket marketContract;
     Recipient recipientContract; 
     Token tokenContract;
+    DonorStorage donorStorage;
     address contractOwner;
-
-    uint256 public numDonors = 0;
-    mapping(uint256 => donor) public donors;
-    mapping(uint256 => uint256[]) public listingsCreated; // donorId => list of listingId that donor owns
 
     bool internal locked = false;
     bool internal contractStopped = true;
 
-    constructor (DonationMarket marketAddress, Recipient recipientAddress, Token tokenAddress) public {
+    constructor (DonationMarket marketAddress, Recipient recipientAddress, Token tokenAddress, DonorStorage storageAddress) public {
         marketContract = marketAddress;
         recipientContract = recipientAddress;
         tokenContract = tokenAddress;
+        donorStorage = storageAddress;
         contractOwner = msg.sender;
     }
 
-    
     //function to create a new donor, and add to 'donors' map
     function createDonor (
         string memory name,
         string memory password
     ) public returns(uint256) {
         
-        donor memory newDonor = donor(
-            msg.sender, // donor address
-            name,
-            password
-        );
-
-        uint256 newDonorId = numDonors++;
-        donors[newDonorId] = newDonor; //commit to state variable
-
+        // create and add store donor in donorStorage
+        uint256 newDonorId = donorStorage.createDonor(name, password);
         emit createdDonor(newDonorId);
-
         return newDonorId;  
     }
 
@@ -62,13 +46,13 @@ contract Donor {
 
     //modifier to ensure a function is callable only by its donor  
     modifier ownerOnly(uint256 donorId) {
-        require(donors[donorId].owner == msg.sender, "You are not the donor!");
+        require(donorStorage.getOwner(donorId) == msg.sender, "You are not the donor!");
         _;
     }
     
     //modifier to ensure that the donor is valid
     modifier validDonorId(uint256 donorId) {
-        require(donorId < numDonors);
+        require(donorId < donorStorage.getTotalOwners());
         _;
     }
 
@@ -78,8 +62,8 @@ contract Donor {
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
         uint256 listingId = marketContract.createToken(donorId, amt, category);
-        listingsCreated[donorId].push(listingId);
-        tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
+        donorStorage.addListingToDonor(donorId, listingId);
+        tokenContract.transfer(tx.origin, marketContract.getOwner(), amt);
         emit createdToken(donorId, listingId, amt);
     }
 
@@ -100,25 +84,19 @@ contract Donor {
     //Emergency Stop enabled in approve 
     function approveRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId) validDonorId(donorId) stoppedInEmergency public {
         marketContract.approve(requestId, listingId);
-        
-        address donorAdd = donors[donorId].owner;
+        address donorAdd = donorStorage.getOwner(donorId);
         recipientContract.completeRequest(requestId, listingId, donorAdd);
      
         emit approvedRecipientRequest(listingId, recipientId, donorId, requestId);
     }
 
-
-
-    function getDonorAddress(uint256 donorId) public view returns (address) { // ownerOnly?
-        return donors[donorId].owner;
-    }
-
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
         uint256[] memory activeListing;
         uint8 counter = 0;
-        for (uint8 i=0; i < listingsCreated[donorId].length;  i++) {
-            if (marketContract.checkListing(listingsCreated[donorId][i])) {
-                activeListing[counter] =  listingsCreated[donorId][i];
+        uint256[] memory currentListings = donorStorage.getListings(donorId);
+        for (uint8 i=0; i < currentListings.length;  i++) {
+            if (marketContract.checkListing(currentListings[i])) {
+                activeListing[counter] = currentListings[i];
                 counter ++;
             }
         }
