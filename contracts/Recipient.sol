@@ -30,7 +30,7 @@ contract Recipient {
         string memory name,
         string memory password
     ) public returns(uint256) {
-        uint256 newRecipientId = recipientStorage.createRecipient(name, password, msg.sender); 
+        uint256 newRecipientId = recipientStorage.createRecipient(name, password); 
         return newRecipientId;   
     }
 
@@ -143,7 +143,7 @@ contract Recipient {
         //checks
         require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(recipientStorage.getRequestCategory(requestId))),  
         "you are not eligible to request for this listing");
-        require(recipientStorage.verifyRequestListing(requestId, listingId), "You have already requested for this listing");
+        require(!recipientStorage.verifyRequestListing(requestId, listingId), "You have already requested for this listing");
         emit enteredRequest(true);
 
         uint8 deadline = recipientStorage.getRequestDeadline(requestId);

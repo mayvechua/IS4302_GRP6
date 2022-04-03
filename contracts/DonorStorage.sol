@@ -11,14 +11,13 @@ contract DonorStorage {
     }
 
     address owner = msg.sender; // set deployer as owner of storage
-    uint256 public numDonors = 0; // total number of donors
-    mapping(uint256 => donor) public donors; // donors
+    uint256  numDonors = 0; // total number of donors
+    mapping(uint256 => donor) donors; // donors
 
     // stores new donor into mapping
     function createDonor (
         string memory name,
-        string memory password,
-        address sender
+        string memory password
     ) public returns(uint256) {
         uint256[] memory initListingsArray;
         donor memory newDonor = donor(

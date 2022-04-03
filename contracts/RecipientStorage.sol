@@ -38,15 +38,11 @@ contract RecipientStorage {
     }
 
     address owner = msg.sender; // set deployer as owner of storage
-    uint256 public numRecipients = 0;
-    uint256 public numRequests = 0;
-    mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request) public requests; // requestId -> hash(recipientID, username,pw, requestID)
-    mapping(uint256 => withdrawal) public withdrawalRequests; // available only for 7 days
-
-    // mapping(uint256 => listingState[]) public listingsApproved;
-    // mapping(uint256 => listingState[]) public listingsNotApproved;
-
+    uint256 numRecipients = 0;
+    uint256 numRequests = 0;
+    mapping(uint256 => recipient) recipients;
+    mapping(uint256 => request) requests; // requestId -> hash(recipientID, username,pw, requestID)
+    mapping(uint256 => withdrawal) withdrawalRequests; // available only for 7 days
 
     modifier ownerOnly(uint256 recipientId) {
         require(getRecipientOwner(recipientId) == tx.origin);
@@ -56,8 +52,7 @@ contract RecipientStorage {
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
         string memory name,
-        string memory password,
-        address sender
+        string memory password
     ) public returns(uint256) {
         uint256[] memory setActiveRequest;
         uint256[] memory setWithDrawal;
@@ -76,8 +71,6 @@ contract RecipientStorage {
     }
 
     event pushedToActive(uint256[] activeRequests);
-    event createdRequest(request newRequest);
-
     // create a request for a recipient. requestsid will be stored within recipient for access, request itself will be stored in another mapping
     function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline, string memory category) public returns (uint256) {
         require(requestedAmt > 0, "minimum request need to contain at least 1 Token");
@@ -90,8 +83,6 @@ contract RecipientStorage {
 
         uint256[] memory listings;
         requests[requestId] = request(requestId, recipientId,listings,requestedAmt, deadline, category, true);
-
-        emit createdRequest(requests[requestId]);
 
         return requestId;
     }

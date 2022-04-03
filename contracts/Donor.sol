@@ -32,7 +32,7 @@ contract Donor {
     ) public returns(uint256) {
         
         // create and add store donor in donorStorage
-        uint256 newDonorId = donorStorage.createDonor(name, password, msg.sender);
+        uint256 newDonorId = donorStorage.createDonor(name, password);
         emit createdDonor(newDonorId);
         return newDonorId;  
     }
