@@ -2,84 +2,87 @@ const _deploy_contracts = require ("../migrations/2_deploy_contracts");
 const truffleAssert = require("truffle-assertions");
 var assert = require("assert");
 
-var Market = artifacts.require("../contracts/DonationMarket.sol");
-
+var DonationMarket = artifacts.require("../contracts/DonationMarket.sol");
+var Recipient = artifacts.require("../contracts/Recipient.sol")
 contract('Market', function(accounts) {
     let marketInstance ;
+    let recipientInstance;
     before(async () => {
-        marketInstance = await Market.deployed();
+        marketInstance = await DonationMarket.deployed();
+        recipientInstance = await Recipient.deployed();
     });
     console.log("Testing Token Contract");
 
-    //test create token
-    it ("Add Listing", async() => {
-        let makeT1 = await tokenInstance.createListing(0,50,"children", {from: accounts[1], value: 5000000000000000000});
+    //test create Listing
+    it ("Create Listing", async() => {
+        let makeL1 = await marketInstance.createListing(0,50,"children", {from: accounts[1]});
+        
         
         assert.notStrictEqual(
-            makeT1,
+            makeL1,
             undefined,
-            "Failed to make Token"
+            "Failed to make Listing"
         );
     });
-    //test that donor cannot add request to their own token 
-    it ("Test that donor cannot add request to their own token  ", async() => {
+    //test that donor cannot add request to their own listing
+    it ("Test that donor cannot add request to their own listing", async() => {
         try {
-            await tokenInstance.addRequest(1,1,1,10102022,{from: accounts[1]});
+            await marketInstance.addRequest(0,0,25,5,0,{from: accounts[1]});
         } catch (error) {
-            const errorMsgReceived =  error.message.search("You cannot request for your own token, try unlisting instead!") >= 0;
+            const errorMsgReceived =  error.message.search("You cannot request for your own listing, try unlisting instead!") >= 0;
             assert(errorMsgReceived, "Error Message Received");
             return;
         };
+        assert.fail("Expected Error not received!");
     });
     
     //test add request 
-    it ("Add Request to Token", async() => {
-        let addRequestT1 = await tokenInstance.addRequest(1,1,1,10102022,{from: accounts[2]});
+    it ("Add Request to listing", async() => {
+        // let recipientR1 = await recipientInstance.createRecipient("recipient", "password123", {from: accounts[2]});
+        // let requestR1 = await recipientInstance.createRequest(0, 25, 5,"children", {from: accounts[6]});
+        // let addrequest = await recipientInstance.requestDonation(0, 0, 0, {from: accounts[2]});
+        let addRequestT1 = await marketInstance.addRequest(0,0,25,5,0,{from: accounts[2]});
         
         truffleAssert.eventEmitted(addRequestT1, 'requestAdded');
     });
 
-    //test that non-donor of token cannot approve request
-        it ("test that non-donor of token cannot approve request", async() => {
-            try {
-                await tokenInstance.approve(1,1,{from: accounts[2]});
-            } catch (error) {
-                const errorMsgReceived =  error.message.search("You are not the donor of this token!") >= 0;
-                assert(errorMsgReceived, "Error Message Received");
-                return;
-            };
+    //test that non-donor of listing cannot approve request - integration?
+        // it ("test that non-donor of listing cannot approve request", async() => {
+        //     try {
+        //         await marketInstance.approve(0,0,{from: accounts[2]});
+        //     } catch (error) {
+        //         const errorMsgReceived =  error.message.search("You are not the donor of this listing!") >= 0;
+        //         assert(errorMsgReceived, "Error Message Received");
+        //         return;
+        //     };
+        //     assert.fail("Expected Error not received!");
     
-        });
+        // });
         
 
-    //test approve
-    it ("Approve Request", async() => {
-        let approveRequestT1 = await tokenInstance.approve(1,1,{from: accounts[1]});
+    //test approve - integration?
+    // it ("Approve Request", async() => {
+    //     let approveRequestT1 = await marketInstance.approve(0,0,{from: accounts[1]});
         
-        truffleAssert.eventEmitted(approveRequestT1, 'transferred');
-    });
+    //     truffleAssert.eventEmitted(approveRequestT1, 'transferred');
+    // });
 
     //test unlist
-    it ("unlist Token", async() => {
-        let unlistT1 = await tokenInstance.unlist(1,{from: accounts[1]});
-        truffleAssert.eventEmitted(unlistT1, 'tokenUnlisted');
+    it ("unlist Listing", async() => {
+        let unlistT1 = await marketInstance.unlist(0,{from: accounts[1]});
+        truffleAssert.eventEmitted(unlistT1, 'listingUnlisted');
     });
 
-    //test security functions that only owner can excute 
+    //test security functions that only owner of contractcan excute 
         it ("test security functions that only owner can excute", async() => {
             await truffleAssert.passes(
-                tokenInstance.stopContract({from: accounts[6]}),
+                marketInstance.toggleContactStopped({from: accounts[6]}),
                 'Emergency Stop Method should only be run by owner of contract!'
-            );
- 
-            await truffleAssert.passes(
-                tokenInstance.resumeContract({from: accounts[6]}),
-                'Emergency Resume Method should only be run by owner of contract!'
             );
 
             await truffleAssert.passes(
-                tokenInstance.setBalanceLimit(600,{from: accounts[6]}),
-                'Set Balance Limit should only be run by owner of contract!'
+                marketInstance.destroyContract({from: accounts[6]}),
+                'Self Destruct should only be run by owner of contract!'
             );
  
         });
