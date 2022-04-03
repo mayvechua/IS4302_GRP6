@@ -83,7 +83,7 @@ contract Donor {
     }
 
     //Emergency Stop enabled in approve 
-    function approveRecipientRequest(uint256 requestId, uint256 listingId, uint256 donorId, uint256 recipientId) validDonorId(donorId) stoppedInEmergency public {
+    function approveRecipientRequest(uint256 requestId, uint256 listingId, uint256 donorId, uint256 recipientId) validDonorId(donorId) stoppedInEmergency ownerOnly(donorId) public {
 
         marketContract.approve(requestId, listingId);
         address donorAdd = donorStorage.getOwner(donorId);
