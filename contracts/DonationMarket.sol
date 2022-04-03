@@ -41,13 +41,13 @@ contract DonationMarket {
 
     //Access Restrictions
     modifier listingDonorOnly(uint256 listingId) {
-        require(tx.origin == Listings[listingId].donorAddress, "You are not the donor of this token!");
+        require(tx.origin == Listings[listingId].donorAddress, "You are not the donor of this listing!");
         _;
     }
 
 
     modifier validListingOnly(uint256 listingId) {
-        require(Listings[listingId].isValue, "Invalid Token!");
+        require(Listings[listingId].isValue, "Invalid Listing!");
          _;
     }
 
@@ -170,7 +170,7 @@ contract DonationMarket {
     
     //add request to listing
     function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validListingOnly(listingId) isActive {
-        require(tx.origin != Listings[listingId].donorAddress, "You cannot request for your own token, try unlisting instead!");
+        require(tx.origin != Listings[listingId].donorAddress, "You cannot request for your own listing, try unlisting instead!");
         uint expirationTime = block.timestamp + deadline * (1 days);
         state memory newState = state(recipientId, amt, false, deadline, tx.origin, true, expirationTime);
         ListingRequests[requestId] = newState;

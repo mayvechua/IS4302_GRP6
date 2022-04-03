@@ -29,64 +29,40 @@ contract('Donor', function(accounts) {
         );
     });
 
-    it ("Top-Up Wallet Successful", async() => {
-        let topUpD1 = await donorInstance.topUpWallet(0, {from: accounts[1], value: '1000000000000000000'}); // 1 ether
-        let walletD1 = await donorInstance.getWallet(0, {from:accounts[1]});
 
+    it ("Create Listing by donor", async() => {
+        let getTokens = await tokenInstance.getCredit({from: accounts[1], value: 1000000000000000000})
+        let Listing = await donorInstance.createListing(0,50, "children", {from: accounts[1]});
         assert.notStrictEqual(
-            walletD1,
-            '1000000000000000000',
-            "Top-Up value is not 1 ether"
-        )
-
-        truffleAssert.eventEmitted(topUpD1, 'toppedUpWallet');
-        
-    });
-
-    it ("Create token by donor", async() => {
-        let tokenD1 = await donorInstance.createToken(0, 100000, "food", {from: accounts[1]});
-
-        assert.notStrictEqual(
-            tokenD1,
+            Listing,
             undefined,
-            "Failed to create Token"
+            "Failed to create Listing"
         );
 
-        truffleAssert.eventEmitted(tokenD1, 'createdToken');
+        truffleAssert.eventEmitted(Listing, 'createdListing');
     });
 
-    it ("Test top-up wallet limit works ", async() => {
+    it ("test functions that only the donor can execute himself", async() => {
         try {
-            let topUpD2 = await donorInstance.topUpWallet(0, {from: accounts[1], value: '11000000000000000000'}); // 11 ether
-            
+            await donorInstance.approveRecipientRequest(0,0, 0, 0, {from: accounts[2]});
         } catch (error) {
-            const errorMsgReceived =  error.message.search("The top-up value is more than the wallet limit!") >= 0;
+            const errorMsgReceived =  error.message.search("You are not the donor!") >= 0;
             assert(errorMsgReceived, "Error Message Received");
             return;
-        }
+        };
+        assert.fail("Expected Error not received!");
+
     })
+
 
     it ("Approved Request by Recipient for Token", async() => {
-        let recipientR1 = await recipientInstance.createRecipient("recipient", "password123", "food", {from: accounts[2]});
-        let requestR1 = await recipientInstance.requestDonation(0, 1, 1000, {from: accounts[2]});
-
-        let approvedD1 = await donorInstance.approveRecipient(1, 0, 0, {from: accounts[1]});
-
-        truffleAssert.eventEmitted(approvedD1, 'approvedRecipient');
+        let recipientR1 = await recipientInstance.createRecipient("recipient", "password123", {from: accounts[2]});
+        let requestR1 = await recipientInstance.createRequest(0, 50, 2,"children", {from: accounts[6]});
+        let addrequest = await recipientInstance.requestDonation(0, 0, 0, {from: accounts[2]});
+        let approvedD1 = await donorInstance.approveRecipientRequest(0,0, 0, 0, {from: accounts[1]});
+        truffleAssert.eventEmitted(approvedD1, 'approvedRecipientRequest');
     })
  
-    it ("test functions that only the donor can execute himself", async() => {
-        
-        await truffleAssert.passes(
-            donorInstance.topUpWallet(0, {from: accounts[1], value: '1000000000000000000'}),
-            "Only the donor can top up the wallet!"
-        );
-
-        await truffleAssert.passes(
-            donorInstance.approveRecipient(1, 0, 0, {from: accounts[1]}),
-            "Only the donor can approve the request!"
-        );
-    })
 
     it ("test security functions that only owner can execute", async() => {
         await truffleAssert.passes(

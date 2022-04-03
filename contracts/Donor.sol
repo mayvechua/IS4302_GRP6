@@ -39,7 +39,7 @@ contract Donor {
 
     event approved(uint256 listingId, address recipient);
     event createdDonor(uint256 donorId);
-    event createdToken(uint256 donorId, uint256 listingId, uint256 amt);
+    event createdListing(uint256 donorId, uint256 listingId, uint256 amt);
     event approvedRecipientRequest(uint256 listingId, uint256 recipientId, uint256 donorId, uint256 requestId);
     event listingUnlisted(uint256 listingId);
 
@@ -64,7 +64,7 @@ contract Donor {
         uint256 listingId = marketContract.createListing(donorId, amt, category);
         donorStorage.addListingToDonor(donorId, listingId);
         tokenContract.transferToken(tx.origin, marketContract.getOwner(), amt);
-        emit createdToken(donorId, listingId, amt);
+        emit createdListing(donorId, listingId, amt);
     }
 
     modifier stoppedInEmergency {
@@ -83,7 +83,7 @@ contract Donor {
     }
 
     //Emergency Stop enabled in approve 
-    function approveRecipientRequest(uint256 requestId, uint256 listingId, uint256 donorId, uint256 recipientId) validDonorId(donorId) stoppedInEmergency public {
+    function approveRecipientRequest(uint256 requestId, uint256 listingId, uint256 donorId, uint256 recipientId) ownerOnly(donorId) validDonorId(donorId) stoppedInEmergency public {
 
         marketContract.approve(requestId, listingId);
         address donorAdd = donorStorage.getOwner(donorId);
