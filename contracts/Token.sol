@@ -10,22 +10,37 @@ contract Token {
     address owner;
     uint256 conversionRate;
 
+    //Security Functions 
     // mutex: prevent re-entrant
-    bool locked = false;
+    bool internal  locked = false;
     modifier noReEntrant {
         require(!locked, "No re-entrancy");
         _;
     }
+
+    //Access Restriction
     modifier ownerOnly {
         require (msg.sender == owner, "you are not allowed to use this function");
         _;
     }
 
-   bool public contractStopped = false;
-    modifier stoppedInEmergency {
-        if (!contractStopped) _;
-    }
 
+     // self-destruct function 
+    function destroyContract() public ownerOnly {
+        address payable receiver = payable(owner);
+         selfdestruct(receiver);
+     }
+
+    //Emergency 
+    bool public contractStopped = false;
+    function toggleContactStopped() public  ownerOnly {
+        contractStopped = !contractStopped;
+    }
+   
+    modifier stoppedInEmergency {
+            require(!contractStopped);
+            _;
+        }
 
     constructor() public {
         ERC20 e = new ERC20(); //deploying a new contract 
@@ -34,6 +49,8 @@ contract Token {
         supplyLimit = 10000;
         conversionRate= 100;
     }
+
+    //Main Functions 
 
     //cashing in ether for DT token 
     function getCredit() public payable  stoppedInEmergency {
@@ -49,11 +66,13 @@ contract Token {
     }
 
     //transfer token from sender to recipient 
-    function transfer(address sender, address recipient, uint256 tokens) public   stoppedInEmergency {
+    function transferToken(address sender, address recipient, uint256 tokens) public   stoppedInEmergency {
         erc20Contract.transferFrom(sender,recipient,tokens);
     } 
 
-    //get owner of contract 
+
+    //Getter and Setter Functions 
+    //getter function for owner of contract 
     function getOwner() public view returns (address) {
         return owner;
     }
@@ -68,9 +87,7 @@ contract Token {
         
     }
 
-
-
-    //get token supply
+    //getter function for  token supply
     function getSupply() public view returns (uint256) {
         return supplyLimit - erc20Contract.totalSupply(); 
     }
@@ -80,20 +97,11 @@ contract Token {
         locked = true;
         address payable recipient = payable (tx.origin);
         recipient.transfer(amt/0.01 ether);
-         locked = false;
+        locked = false;
     }
     
 
-        // self-destruct function 
-     function destroyContract() public ownerOnly {
-        address payable receiver = payable(owner);
-         selfdestruct(receiver);
-     }
 
-     //Emergency 
-    function toggleContactStopped() public  ownerOnly {
-        contractStopped = !contractStopped;
-    }
 
 
 }
