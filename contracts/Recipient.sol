@@ -119,19 +119,9 @@ contract Recipient {
         autoDeprecate(); // reset the daily auto deprecation time
         
     }
-
-    //TODO: revisit the logic
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
-        // TODO: implement automatic depreciation of each listing (7days to cash out for reach approval)! 
-
-        uint256 listingAmt = recipientStorage.getRecipientWallet(recipientId);
-        require(listingAmt > 0, "Invalid amount to be withdrawn from wallet!");
-        
-
-        recipientStorage.emptyRecipientWallet(recipientId);
         recipientStorage.removeWithdrawal(recipientId);
-        cashOutTokens(listingAmt);
-
+        cashOutTokens(recipientStorage.emptyRecipientWallet(recipientId));
         // unlock after the transaction is completed
         locked = false;
     }
@@ -184,34 +174,19 @@ contract Recipient {
         emit completedRequest(requestId, listingId);
     }
 
-    // function cancelRequest(uint256 recipientId, uint256 requestId, uint256 listingId) public {
-    //     delete requests[requestId];
-    //     delete recipients[recipientId].activeRequests[requestId]; // request no longer active
-    //     marketContract.cancelRequest(requestId, listingId); // remove request from market listing
-    //     numRequests -=1;
-    // }
-
-    // function getWallet(uint256 recipientId) public view ownerOnly(recipientId) validRecipientId(recipientId) returns (uint256) {
-    //     return recipients[recipientId].wallet;
-    // }
-
-
-    /*
-
-    UNUSED FUNCTIONS
-
+    //getter functions to help recipeints keep track of their active request in FE
     function getRecipeintRequest(uint256 recipientId) public view returns (uint256[] memory) {
-        uint256[] memory activeRequest;
+        uint256[] memory activeRequest = new uint256[](recipientStorage.getRequests(recipientId).length);
         uint8 counter = 0;
-        for (uint8 i=0; i < recipients[recipientId].activeRequests.length;  i++) {
-            if (requests[recipients[recipientId].activeRequests[i]].isValue) {
-                activeRequest[counter] =  recipients[recipientId].activeRequests[i];
+        for (uint8 i=0; i < recipientStorage.getRequests(recipientId).length;  i++) {
+            if (recipientStorage.checkRequestValidity(recipientStorage.getRequests(recipientId)[i])) {
+                activeRequest[counter] =  recipientStorage.getRequests(recipientId)[i];
                 counter ++;
             }
         }
         return activeRequest;
     }
-    */
+  
 
      // self-destruct function 
      function destroyContract() public contractOwnerOnly {

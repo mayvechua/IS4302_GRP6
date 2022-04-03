@@ -57,7 +57,7 @@ contract Donor {
     }
 
 
-    function createToken(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
+    function createListing(uint256 donorId, uint256 amt, string memory category ) validDonorId(donorId) public {
         require(tokenContract.checkCredit() >= amt, "Donor does not have enough ether to create listing!");
         require(amt < 10 ether, "Donated amount hit limit! Donated amount cannot be more than 10 ether!");
 
@@ -96,9 +96,8 @@ contract Donor {
     function getActiveListings(uint256 donorId) public view returns (uint256[] memory) {
         uint8 counter = 0;
         uint256[] memory currentListings = donorStorage.getListings(donorId);
-        uint256 n = currentListings.length;
-        uint256[] memory activeListing = new uint[](n);
-        for (uint8 i=0; i < n;  i++) {
+        uint256[] memory activeListing = new uint256[](currentListings.length);
+        for (uint8 i=0; i < currentListings.length;  i++) {
             if (marketContract.checkListing(currentListings[i])) {
                 activeListing[counter] = currentListings[i];
                 counter ++;

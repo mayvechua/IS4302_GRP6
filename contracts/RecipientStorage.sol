@@ -41,7 +41,7 @@ contract RecipientStorage {
     uint256 public numRecipients = 0;
     uint256 public numRequests = 0;
     mapping(uint256 => recipient) public recipients;
-    mapping(uint256 => request) public requests; // hash(recipientID, username,pw, requestID)
+    mapping(uint256 => request) public requests; // requestId -> hash(recipientID, username,pw, requestID)
     mapping(uint256 => withdrawal) public withdrawalRequests; // available only for 7 days
 
     // mapping(uint256 => listingState[]) public listingsApproved;
@@ -49,7 +49,7 @@ contract RecipientStorage {
 
 
     modifier ownerOnly(uint256 recipientId) {
-        require(getRecipientOwner(recipientId) == tx.origin); 
+        require(getRecipientOwner(recipientId) == tx.origin);
         _;
     }
 
@@ -63,7 +63,7 @@ contract RecipientStorage {
         uint256[] memory setWithDrawal;
         recipient memory newRecipient = recipient(
             // recipientState.created,
-            sender, // recipient address
+            tx.origin, // recipient address
             name,
             password,
             0, // wallet
@@ -127,6 +127,11 @@ contract RecipientStorage {
         return numRecipients;
     }
 
+    // return requestIDs of recipeint
+    function getRequests (uint256 recipientId) public view returns (uint256[] memory) {
+        return recipients[recipientId].activeRequests;
+    }
+
     // modify wallet amount for recipient, operation = "+" for credit, operation = "-" for debit
     function modifyRecipientWallet (uint256 recipientId, uint256 amount, string memory operation) public {
         if (keccak256(abi.encodePacked(operation)) == keccak256(abi.encodePacked("+"))) {
@@ -137,8 +142,10 @@ contract RecipientStorage {
     }
 
     // empty recipient wallet
-    function emptyRecipientWallet (uint256 recipientId) ownerOnly(recipientId) public {
+    function emptyRecipientWallet (uint256 recipientId) ownerOnly(recipientId) public returns (uint256){
+        uint256 walletAmt = recipients[recipientId].wallet;
         recipients[recipientId].wallet = 0;
+        return walletAmt;
     }
 
     // REQUEST LEVEL GETTERS/SETTERS
@@ -158,10 +165,19 @@ contract RecipientStorage {
         return requests[requestId].deadline;
     }
 
+    // return bool - true if request exist else false
+    function checkRequestValidity(uint256 requestId) public view returns (bool) {
+        return requests[requestId].isValue;
+    }
     // add unique solicitation attempt
     function addListingToRequest (uint256 requestId, uint256 listingId) public {
         requests[requestId].listingsId.push(listingId);
     }
+
+    
+
+  
+
 
     // WITHDRAWAL LEVEL GETTERS/SETTERS
 
@@ -208,12 +224,12 @@ contract RecipientStorage {
         delete withdrawalRequests[withdrawalId];
     }
 
-    // not very sure what this does
+    // Check if requestid has already exist in the listing to prevent one request id from requesting multiple times in one listing 
     function verifyRequestListing (uint256 requestId, uint256 listingId) public view returns(bool) {
-        bool verified = true;
+        bool verified = false;
         for (uint8 i; i< requests[requestId].listingsId.length; i++) {
-            if (requests[requestId].listingsId[i] != listingId) {
-                verified = false;
+            if (requests[requestId].listingsId[i] == listingId) {
+                verified = true;
                 break;
             } 
         }

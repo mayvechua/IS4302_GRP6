@@ -22,7 +22,7 @@ contract DonorStorage {
     ) public returns(uint256) {
         uint256[] memory initListingsArray;
         donor memory newDonor = donor(
-                sender, // donor address
+                tx.origin, // donor address
                 name,
                 password,
                 initListingsArray

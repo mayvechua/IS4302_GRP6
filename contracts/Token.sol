@@ -12,7 +12,7 @@ contract Token {
 
     //Security Functions 
     // mutex: prevent re-entrant
-    bool locked = false;
+    bool internal  locked = false;
     modifier noReEntrant {
         require(!locked, "No re-entrancy");
         _;
@@ -33,12 +33,14 @@ contract Token {
 
     //Emergency 
     bool public contractStopped = false;
-    modifier stoppedInEmergency {
-        if (!contractStopped) _;
-    }
     function toggleContactStopped() public  ownerOnly {
         contractStopped = !contractStopped;
     }
+   
+    modifier stoppedInEmergency {
+            require(!contractStopped);
+            _;
+        }
 
     constructor() public {
         ERC20 e = new ERC20(); //deploying a new contract 
@@ -67,15 +69,7 @@ contract Token {
     function transferToken(address sender, address recipient, uint256 tokens) public   stoppedInEmergency {
         erc20Contract.transferFrom(sender,recipient,tokens);
     } 
-    
-    function cashOut(uint256 amt) public noReEntrant stoppedInEmergency {
-        erc20Contract.returned(amt);
-        locked = true;
-        address payable recipient = payable(tx.origin);
-        recipient.transfer(amt *  10000000000000000);
-        locked = false;
-    }
-    
+
 
     //Getter and Setter Functions 
     //getter function for owner of contract 
@@ -98,6 +92,14 @@ contract Token {
         return supplyLimit - erc20Contract.totalSupply(); 
     }
 
+    function cashOut(uint256 amt) public noReEntrant  stoppedInEmergency {
+        erc20Contract.returned(amt);
+        locked = true;
+        address payable recipient = payable (tx.origin);
+        recipient.transfer(amt/0.01 ether);
+        locked = false;
+    }
+    
 
 
 
