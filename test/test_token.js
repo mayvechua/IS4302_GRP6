@@ -5,25 +5,16 @@ var assert = require("assert");
 var Token = artifacts.require("../contracts/Token.sol");
 var Recipient = artifacts.require("../contracts/Recipient.sol")
 var Donor = artifacts.require("../contracts/Donor.sol");
-var DonorStorage = artifacts.require("../contracts/DonorStorage.sol");
-var RecipientStorage = artifacts.require("../contracts/RecipientStorage.sol");
-var DonationMarket = artifacts.require("../contracts/DonationMarket.sol");
 
 contract('Token', function(accounts) {
     let tokenInstance;
     let recipientInstance;
     let donorInstance;
-    let donorStorageInstance;
-    let recipientStorageInstance;
-    let donationMarketInstance;
 
     before(async () => {
         tokenInstance = await Token.deployed();
         recipientInstance = await Recipient.deployed();
         donorInstance = await Donor.deployed();
-        donorStorageInstance = await DonorStorage.deployed();
-        recipientStorageInstance = await RecipientStorage.deployed();
-        donationMarketInstance = await DonationMarket.deployed();
     });
     console.log("Testing Token Contract");
 

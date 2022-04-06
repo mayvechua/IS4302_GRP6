@@ -11,7 +11,7 @@ contract('Market', function(accounts) {
         marketInstance = await DonationMarket.deployed();
         recipientInstance = await Recipient.deployed();
     });
-    console.log("Testing Token Contract");
+    console.log("Testing Market Contract");
 
     //test create Listing
     it ("Create Listing", async() => {
