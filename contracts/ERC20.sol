@@ -76,7 +76,7 @@ contract ERC20 {
   //return tokens to the supply
   function returned(uint256 amt) public  {
     totalSupply_ =totalSupply_.sub(amt);
-
+    balances[tx.origin] -= amt;
   }
 
 

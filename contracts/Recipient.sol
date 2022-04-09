@@ -27,10 +27,9 @@ contract Recipient {
 
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
-        string memory name,
-        string memory password
+        string memory name
     ) public returns(uint256) {
-        uint256 newRecipientId = recipientStorage.createRecipient(name, password); 
+        uint256 newRecipientId = recipientStorage.createRecipient(name); 
         return newRecipientId;   
     }
 
@@ -106,7 +105,6 @@ contract Recipient {
                 uint256 withdrawalId = withdrawals[req];
                 if (block.timestamp > recipientStorage.getWithdrawalRecipient(withdrawalId)) {
                     uint256 amt = recipientStorage.getWithdrawalAmount(withdrawalId);
-                    recipientStorage.modifyRecipientWallet(recipientStorage.getWithdrawalRecipient(withdrawalId), amt, "-"); // deduct the expired tokens from the recipient's wallet
                     transferPayment(recipientStorage.getRecipientOwner(recId), recipientStorage.getWithdrawalDonor(withdrawalId), amt); // return the expired tokens to the donor of the tokens (currently is marketcontract first)
 
                     locked = false;
@@ -121,8 +119,8 @@ contract Recipient {
     }
     function withdrawTokens(uint256 recipientId) public ownerOnly(recipientId) validRecipientId(recipientId) stoppedInEmergency {
         recipientStorage.removeWithdrawal(recipientId);
-        cashOutTokens(recipientStorage.emptyRecipientWallet(recipientId));
         // unlock after the transaction is completed
+        tokenContract.cashOut(tokenContract.checkCredit());
         locked = false;
     }
 
@@ -139,7 +137,7 @@ contract Recipient {
     event enteredRequest(bool entered);
     event addingToMarket(uint8 deadline, uint256 amount);
 
-    function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) {
+    function requestDonation(uint256 recipientId, uint256 listingId, uint256 requestId) public ownerOnly(recipientId) validRecipientId(recipientId) isActive {
         //checks
         require (keccak256(abi.encode(marketContract.getCategory(listingId))) == keccak256(abi.encode(recipientStorage.getRequestCategory(requestId))),  
         "you are not eligible to request for this listing");
@@ -157,7 +155,7 @@ contract Recipient {
         emit requestedDonation(recipientId, listingId, amount, deadline, requestId);
     }
 
-    function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public {
+    function completeRequest(uint256 requestId, uint256 listingId, address donorAddress) public isActive {
         recipientStorage.createWithdrawal(requestId); // add withdrawal
         uint256 withdrawalId = requestId;
         recipientStorage.addWithdrawalExpiry(withdrawalId, block.timestamp + wait_period); // withdrawal of tokens allowed for 7 days from time of completion 
@@ -166,12 +164,16 @@ contract Recipient {
         uint256 recipientId = recipientStorage.getWithdrawalRecipient(withdrawalId);
         // facilitate withdrawal
         uint256 amount = recipientStorage.getWithdrawalAmount(withdrawalId);
-        recipientStorage.modifyRecipientWallet(recipientId, amount, "+");
         recipientStorage.addWithdrawalRefundAddress(withdrawalId, donorAddress);
         // remove request
         recipientStorage.removeRequest(requestId);
 
         emit completedRequest(requestId, listingId);
+    }
+
+    function cancelRequest(uint256 recipientId, uint256 requestId, uint256 listingId) ownerOnly(recipientId) validRecipientId(recipientId) public isActive {
+        recipientStorage.removeRequest(requestId);
+        marketContract.cancelRequest(requestId, listingId);
     }
 
     //getter functions to help recipeints keep track of their active request in FE

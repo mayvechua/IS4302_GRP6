@@ -6,7 +6,6 @@ contract DonorStorage {
     struct donor {
         address owner;
         string username;
-        string pw;
         uint256[] listings;
     }
 
@@ -16,14 +15,12 @@ contract DonorStorage {
 
     // stores new donor into mapping
     function createDonor (
-        string memory name,
-        string memory password
+        string memory name
     ) public returns(uint256) {
         uint256[] memory initListingsArray;
         donor memory newDonor = donor(
                 tx.origin, // donor address
                 name,
-                password,
                 initListingsArray
             );
             uint256 newDonorId = numDonors++;
