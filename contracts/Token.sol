@@ -96,12 +96,8 @@ contract Token {
         erc20Contract.returned(amt);
         locked = true;
         address payable recipient = payable (tx.origin);
-        recipient.transfer(amt/0.01 ether);
+        recipient.transfer(amt * 0.01 ether);
         locked = false;
     }
-    
-
-
-
 
 }

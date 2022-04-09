@@ -190,6 +190,10 @@ contract DonationMarket {
         return donationMarketStorage.checkListing(listingId);
     }
 
+    function getOwner() public view returns (address) {
+        return owner;
+    }
+
     
         // self-destruct function 
      function destroyContract() public ownerOnly {
