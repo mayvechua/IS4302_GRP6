@@ -29,12 +29,6 @@ contract DonationMarket {
         require(msg.sender == owner, "You are not allowed to use this function!");
          _;
     }
-
-    //Security Functions 
-
-    bool internal locked;
-    bool isStopped = false;
-
     modifier noReentrancy() {
         require(!locked, "No re-entrancy");
         _;
@@ -45,27 +39,7 @@ contract DonationMarket {
         require(!isStopped, "contract stopped!");
         _;
     }
-
-    modifier validListingOnly(uint256 listingId) {
-        require(donationMarketStorage.checkListing(listingId), "Invalid Listing!");
-         _;
-    }
-
-    //Emergency Stop
-    function toggleContactStopped() public ownerOnly() {
-        isStopped = !isStopped;
-    }
-
-    // deprecate daily to check if the token has expired before allowing withdrawal of tokens
-    function autoDeprecate() public {
-        contract_maintenance = block.timestamp + 1 days;
-    }
-
-    function hasExpired() public view returns (bool) {
-        return block.timestamp > contract_maintenance ? true : false;
-    }
-
-    modifier isActive {
+      modifier isActive {
         require(! hasExpired(), "Not active!");
         _;
     }
@@ -74,8 +48,45 @@ contract DonationMarket {
         require(hasExpired(), "has not expired!");
         _;
     }
+    modifier validListingOnly(uint256 listingId) {
+        require(donationMarketStorage.checkListing(listingId), "Invalid Listing!");
+         _;
+    }
 
+    //Security Functions 
+
+    bool internal locked;
+    bool isStopped = false;
+
+
+    //Emergency Stop
+    function toggleContactStopped() public ownerOnly() {
+        isStopped = !isStopped;
+    }
+
+    // Deprecate daily to check if the token has expired before allowing withdrawal of tokens
+    function autoDeprecate() public {
+        contract_maintenance = block.timestamp + 1 days;
+    }
     
+    //Automatic Deprecation of requests(check the deadline)
+    function autoUnlist() internal whenDeprecated {
+        for (uint listId; listId < listingCount; listId++) {
+            for (uint req; req < donationMarketStorage.getListingRequests(req).length; req++) {
+                if (block.timestamp > donationMarketStorage.getRequestExpiry(req)) {
+                    cancelRequest(req, listId); // request has expired, removed request
+                }
+            }
+        }
+        autoDeprecate();
+    }
+
+    //Check if the request have expired 
+    function hasExpired() public view returns (bool) {
+        return block.timestamp > contract_maintenance ? true : false;
+    }
+
+    //Self Destruct Function of contract 
     function selfDestruct() public ownerOnly() {
         address payable addr = payable(owner);
         selfdestruct(addr); 
@@ -89,26 +100,16 @@ contract DonationMarket {
     event listingUnlisted(uint256 listingId); 
 
 
-    //Automatic Deprecation of listing and unlisting (check the deadline)
-    function autoUnlist() internal whenDeprecated {
-        for (uint listId; listId < listingCount; listId++) {
-            for (uint req; req < donationMarketStorage.getListingRequests(req).length; req++) {
-                if (block.timestamp > donationMarketStorage.getRequestExpiry(req)) {
-                    cancelRequest(req, listId); // request has expired, removed request
-                }
-            }
-        }
-        autoDeprecate();
-    }
 
     //Core Functions 
+
+    // Allow for removal of request in all the listing that this request has requested.
     function cancelRequest(uint256 requestId, uint256 listingId) public validListingOnly(listingId) {
         donationMarketStorage.removeRequest(requestId);
     }
 
     function unlist(uint256 listingId) public  noReentrancy() validListingOnly(listingId) listingDonorOnly(listingId) stoppedInEmergency {
         require(!locked, "No re-entrancy");
-        //TODO: unlist from Donation Market
         donationMarketStorage.removeListing(listingId);
         locked = true;
         tokenContract.transferToken(owner, tx.origin, donationMarketStorage.getListingAmount(listingId));
@@ -119,8 +120,9 @@ contract DonationMarket {
     }
     
 
-    //approve function - send eth to recipients, minus amt from listing 
-    // there will be no partial transfer! 
+    //Approve function : send tokens to recipients, remove request from all other listing to prevent multiple trasnfer of that request. 
+    // Re-entrancy security function since transferring of tokens occur here
+    // there will be no partial transfer of tokens. (either all requested tokens or none)
     function approve(uint256 requestId, uint256 listingId) public  noReentrancy() validListingOnly(listingId) listingDonorOnly(listingId) stoppedInEmergency {
         require(donationMarketStorage.checkRequest(requestId), "request has been taken down");
         //transfer tokens
@@ -132,7 +134,6 @@ contract DonationMarket {
         locked = false;
         emit transferred(listingId, donationMarketStorage.getRequestRecipientAddress(requestId));
         // transfer end, check 
-        
         donationMarketStorage.removeRequest(requestId);
         donationMarketStorage.modifyListingAmount(listingId, amount, "-");
 
@@ -152,7 +153,7 @@ contract DonationMarket {
     }
 
 
-    // create Listing + list 
+    // list the listing created by donor 
     function createListing(uint256 donorId, uint256 amt, string memory category) public returns (uint256) {
         contractEthBalance += amt;
         uint256 listingId = listingCount;
@@ -164,7 +165,6 @@ contract DonationMarket {
 
     // getters in place to ensure that other contracts cannot directly access the donation market storage data layer
     // and to enforce access modifiers for external contracts
-
     //getter function for the requests in each listing
     function getRecipientRequest(uint256 listingId) public view listingDonorOnly(listingId) validListingOnly(listingId) returns (uint256[] memory) {
         uint256[] memory requests = donationMarketStorage.getListingRequests(listingId);

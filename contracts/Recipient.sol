@@ -26,29 +26,8 @@ contract Recipient {
         contractOwner = msg.sender;
         autoDeprecate(); // set daily contract check
     }
-
-    //function to create a new recipient, and add to 'recipients' map
-    function createRecipient(string memory name, string memory password)
-        public
-        returns (uint256)
-    {
-        uint256 newRecipientId = recipientStorage.createRecipient(
-            name,
-            password
-        );
-        return newRecipientId;
-    }
-
-    event requestedDonation(
-        uint256 recipientId,
-        uint256 listingId,
-        uint256 amt,
-        uint256 deadline,
-        uint256 requestId
-    );
-    event completedRequest(uint256 requestId, uint256 listingId);
-
-    //modifier to ensure a function is callable only by its owner
+    //Access Restriction 
+     //modifier to ensure a function is callable only by its owner
     modifier ownerOnly(uint256 recipientId) {
         require(
             recipientStorage.getRecipientOwner(recipientId) == msg.sender,
@@ -70,25 +49,12 @@ contract Recipient {
         _;
     }
 
-    function toggleContactStopped() public contractOwnerOnly {
-        contractStopped = !contractStopped;
-    }
-
     modifier validRecipientId(uint256 recipientId) {
         require(
             recipientId <= recipientStorage.getTotalRecipients(),
             "recipientId does not exist"
         );
         _;
-    }
-
-    // deprecate daily to check if the token has expired before allowing withdrawal of tokens
-    function autoDeprecate() public {
-        contract_maintenance = block.timestamp + 1 days;
-    }
-
-    function hasExpired() public view returns (bool) {
-        return block.timestamp > contract_maintenance ? true : false;
     }
 
     modifier isActive() {
@@ -107,21 +73,60 @@ contract Recipient {
         locked = true;
         _;
         locked = false;
+    }    
+    //Events
+    event requestedDonation(
+        uint256 recipientId,
+        uint256 listingId,
+        uint256 amt,
+        uint256 deadline,
+        uint256 requestId
+    );
+    event completedRequest(uint256 requestId, uint256 listingId);
+    event requestCreated(uint256 requestId);
+    event enteredRequest(bool entered);
+    event addingToMarket(uint8 deadline, uint256 amount);
+   //Security Functions 
+
+    function toggleContactStopped() public contractOwnerOnly {
+        contractStopped = !contractStopped;
     }
 
+    // deprecate daily to check if the token has expired before allowing withdrawal of tokens
+    function autoDeprecate() public {
+        contract_maintenance = block.timestamp + 1 days;
+    }
+
+    function hasExpired() public view returns (bool) {
+        return block.timestamp > contract_maintenance ? true : false;
+    }
+    // self-destruct function
+    function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(contractOwner);
+        selfdestruct(receiver);
+    }
+
+
+
+    //Core Functions 
+    //function to create a new recipient, and add to 'recipients' map
+
     // separate the payment to check for re-entrant
+    //Functions are private so that it can only be used internally and not even by derived contracts
     function transferPayment(
         address sender,
         address receiver,
         uint256 token
-    ) internal noReEntrant {
+    ) private noReEntrant {
         tokenContract.transferToken(sender, receiver, token);
     }
 
-    function cashOutTokens(uint256 amt) internal noReEntrant {
+    function cashOutTokens(uint256 amt) private noReEntrant {
         tokenContract.cashOut(amt);
     }
 
+    //Functions that will refund tokens if the approved request expired 
+    //Expired meaning donor approve request, requested tokens are transfered to recipient but recipient did not cash out within 7 days)
     function refundToken() public whenDeprecated {
         for (
             uint256 recId;
@@ -159,7 +164,8 @@ contract Recipient {
 
         autoDeprecate(); // reset the daily auto deprecation time
     }
-
+    
+    // allow recipient to withdraw tokens
     function withdrawTokens(uint256 recipientId)
         public
         ownerOnly(recipientId)
@@ -172,7 +178,6 @@ contract Recipient {
         locked = false;
     }
 
-    event requestCreated(uint256 requestId);
 
     //when developer (oracle) approve of the proof of usage, it will be tagged to a request to prevent duplicative usage of proof of usage
     function createRequest(
@@ -194,10 +199,20 @@ contract Recipient {
         emit requestCreated(requestId);
         return requestId;
     }
+    
+    //functions to create recipient 
+    function createRecipient(string memory name, string memory password)
+        public
+        returns (uint256)
+    {
+        uint256 newRecipientId = recipientStorage.createRecipient(
+            name,
+            password
+        );
+        return newRecipientId;
+    }
 
-    event enteredRequest(bool entered);
-    event addingToMarket(uint8 deadline, uint256 amount);
-
+    // allow recipeint to use their approved requestID to request for listing in donationMarket
     function requestDonation(
         uint256 recipientId,
         uint256 listingId,
@@ -240,6 +255,7 @@ contract Recipient {
         );
     }
 
+    // Request is completed meaning donor approved request and transfer requested tokens to recipient 
     function completeRequest(
         uint256 requestId,
         uint256 listingId,
@@ -266,7 +282,8 @@ contract Recipient {
         emit completedRequest(requestId, listingId);
     }
 
-    //getter functions to help recipients keep track of their active request in FE
+    //GETTER FUNCTIONS
+    //getter functions to help recipients keep track of their active request in Frontend
     function getRecipientRequest(uint256 recipientId)
         public
         view
@@ -295,9 +312,5 @@ contract Recipient {
         return activeRequest;
     }
 
-    // self-destruct function
-    function destroyContract() public contractOwnerOnly {
-        address payable receiver = payable(contractOwner);
-        selfdestruct(receiver);
-    }
+
 }

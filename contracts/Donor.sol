@@ -24,32 +24,12 @@ contract Donor {
         marketContract = marketAddress;
         recipientContract = recipientAddress;
         tokenContract = tokenAddress;
-        donorStorage = storageAddress;
+        donorStorage = storageAddress; //Data storage for this contract
         contractOwner = msg.sender;
     }
 
-    //function to create a new donor, and add to 'donors' map
-    function createDonor(string memory name, string memory password)
-        public
-        returns (uint256)
-    {
-        // create and add store donor in donorStorage
-        uint256 newDonorId = donorStorage.createDonor(name, password);
-        emit createdDonor(newDonorId);
-        return newDonorId;
-    }
 
-    event approved(uint256 listingId, address recipient);
-    event createdDonor(uint256 donorId);
-    event createdListing(uint256 donorId, uint256 listingId, uint256 amt);
-    event approvedRecipientRequest(
-        uint256 listingId,
-        uint256 recipientId,
-        uint256 donorId,
-        uint256 requestId
-    );
-    event listingUnlisted(uint256 listingId);
-
+    //Access Restriction Functions
     //modifier to ensure a function is callable only by its donor
     modifier ownerOnly(uint256 donorId) {
         require(
@@ -67,7 +47,44 @@ contract Donor {
         );
         _;
     }
+    modifier stoppedInEmergency() {
+        require(!contractStopped, "contract stopped!");
+        _;
+    }
 
+    modifier contractOwnerOnly() {
+        require(
+            msg.sender == contractOwner,
+            "only the owner of the contract can call this method!"
+        );
+        _;
+    }
+
+    //Security Functions 
+    // self-destruct function
+    function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(contractOwner);
+        selfdestruct(receiver);
+    }
+
+    //Emergency Stop Functions
+    function toggleContactStopped() public contractOwnerOnly {
+        contractStopped = !contractStopped;
+    }
+    //Events 
+    event approved(uint256 listingId, address recipient);
+    event createdDonor(uint256 donorId);
+    event createdListing(uint256 donorId, uint256 listingId, uint256 amt);
+    event approvedRecipientRequest(
+        uint256 listingId,
+        uint256 recipientId,
+        uint256 donorId,
+        uint256 requestId
+    );
+    event listingUnlisted(uint256 listingId);
+
+    //Core Functions 
+    // Create a Listing that would be listed in the Donation Market 
     function createListing(
         uint256 donorId,
         uint256 amt,
@@ -92,24 +109,19 @@ contract Donor {
         emit createdListing(donorId, listingId, amt);
     }
 
-    modifier stoppedInEmergency() {
-        require(!contractStopped, "contract stopped!");
-        _;
-    }
 
-    modifier contractOwnerOnly() {
-        require(
-            msg.sender == contractOwner,
-            "only the owner of the contract can call this method!"
-        );
-        _;
+    //function to create a new donor, and add to 'donors' map
+    function createDonor(string memory name, string memory password)
+        public
+        returns (uint256)
+    {
+        // create and add store donor in donorStorage
+        uint256 newDonorId = donorStorage.createDonor(name, password);
+        emit createdDonor(newDonorId);
+        return newDonorId;
     }
-
-    function toggleContactStopped() public contractOwnerOnly {
-        contractStopped = !contractStopped;
-    }
-
-    //Emergency Stop enabled in approve
+    //Approve Request Function to release tokens to recipeint based on their request 
+    // Emergency Stop enabled for security purpose since this function include transferring of tokens
     function approveRecipientRequest(
         uint256 requestId,
         uint256 listingId,
@@ -127,7 +139,7 @@ contract Donor {
             requestId
         );
     }
-
+    // Get all active (still listed in market) listing of donors to be shown in Frontend 
     function getActiveListings(uint256 donorId)
         public
         view
@@ -154,9 +166,4 @@ contract Donor {
         return currentListings;
     }
 
-    // self-destruct function
-    function destroyContract() public contractOwnerOnly {
-        address payable receiver = payable(contractOwner);
-        selfdestruct(receiver);
-    }
 }

@@ -26,7 +26,25 @@ contract DonationMarketStorage {
     address owner = msg.sender; // set deployer as owner of storage
     mapping(uint256 => listing) Listings;
     mapping (uint256 => state) ListingRequests; 
+    //Access Restriction 
+    modifier contractOwnerOnly() {
+        require(
+            msg.sender == owner,
+            "you are not allowed to use this function"
+        );
+        _;
+    }
+    
+    //Security Functions
+    
+    //Self-destruct function
+    bool internal locked = false;
+    function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(owner);
+        selfdestruct(receiver);
+    }
 
+    
     //getter function for owner
     function getOwner() public view returns(address) {
         return owner;

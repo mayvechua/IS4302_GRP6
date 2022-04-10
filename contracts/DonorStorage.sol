@@ -13,7 +13,23 @@ contract DonorStorage {
     address owner = msg.sender; // set deployer as owner of storage
     uint256  numDonors = 0; // total number of donors
     mapping(uint256 => donor) donors; // donors
-
+    //Access Restriction 
+    modifier contractOwnerOnly() {
+        require(
+            msg.sender == owner,
+            "you are not allowed to use this function"
+        );
+        _;
+    }
+    
+    //Security Functions
+    
+    //Self-destruct function
+    bool internal locked = false;
+    function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(owner);
+        selfdestruct(receiver);
+    }
     // stores new donor into mapping
     function createDonor (
         string memory name,
@@ -47,7 +63,7 @@ contract DonorStorage {
     }
 
     // get collection of listings for donor 
-    function getListings (uint256 donorId) public view returns(uint256[] memory) {
+    function getListings(uint256 donorId) public view returns(uint256[] memory) {
         return donors[donorId].listings;
     }
 

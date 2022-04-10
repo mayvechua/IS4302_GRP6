@@ -44,11 +44,30 @@ contract RecipientStorage {
     mapping(uint256 => request) requests; // requestId -> hash(recipientID, username,pw, requestID)
     mapping(uint256 => withdrawal) withdrawalRequests; // available only for 7 days
 
+    //Access restriction 
     modifier ownerOnly(uint256 recipientId) {
         require(getRecipientOwner(recipientId) == tx.origin);
         _;
     }
 
+    modifier contractOwnerOnly() {
+        require(
+            msg.sender == owner,
+            "you are not allowed to use this function"
+        );
+        _;
+    }
+    
+    //Security Functions
+    
+    //Self-destruct function
+    bool internal locked = false;
+    function destroyContract() public contractOwnerOnly {
+        address payable receiver = payable(owner);
+        selfdestruct(receiver);
+    }
+
+    
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
         string memory name,

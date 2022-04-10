@@ -5,19 +5,22 @@ import "./ERC20.sol";
 
 contract Token {
     ERC20 erc20Contract;
-    uint256 supplyLimit;
+    uint256 supplyLimit; // have a supply limit to cap the amount of ether that can be stored in this contract 
     address owner;
     uint256 conversionRate;
 
-    //Security Functions
+    //Access Restriction
     // mutex: prevent re-entrant
-    bool internal locked = false;
     modifier noReEntrant() {
         require(!locked, "No re-entrancy");
         _;
     }
 
-    //Access Restriction
+    modifier stoppedInEmergency() {
+        require(!contractStopped);
+        _;
+    }
+
     modifier ownerOnly() {
         require(
             msg.sender == owner,
@@ -25,8 +28,11 @@ contract Token {
         );
         _;
     }
-
-    // self-destruct function
+    
+    //Security Functions
+    
+    //Self-destruct function
+    bool internal locked = false;
     function destroyContract() public ownerOnly {
         address payable receiver = payable(owner);
         selfdestruct(receiver);
@@ -39,10 +45,6 @@ contract Token {
         contractStopped = !contractStopped;
     }
 
-    modifier stoppedInEmergency() {
-        require(!contractStopped);
-        _;
-    }
 
     constructor() public {
         ERC20 e = new ERC20(); //deploying a new contract
@@ -52,9 +54,10 @@ contract Token {
         conversionRate = 100;
     }
 
-    //Main Functions
+    //Core Functions
 
     //cashing in ether for DT token
+    // ether will be sent into this contract 
     function getCredit() public payable stoppedInEmergency {
         uint256 amt = msg.value / 10000000000000000; // exchange rate for 1Eth : 100DT
         require(
@@ -78,6 +81,14 @@ contract Token {
     ) public stoppedInEmergency {
         erc20Contract.transferFrom(sender, recipient, tokens);
     }
+    
+    function cashOut(uint256 amt) public noReEntrant stoppedInEmergency {
+        erc20Contract.returned(amt);
+        locked = true;
+        address payable recipient = payable(tx.origin);
+        recipient.transfer(amt*10000000000000000);
+        locked = false;
+    }
 
     //Getter and Setter Functions
     //getter function for owner of contract
@@ -95,16 +106,10 @@ contract Token {
         return conversionRate;
     }
 
-    //getter function for  token supply
+    //getter function for token supply
     function getSupply() public view returns (uint256) {
         return supplyLimit - erc20Contract.totalSupply();
     }
 
-    function cashOut(uint256 amt) public noReEntrant stoppedInEmergency {
-        erc20Contract.returned(amt);
-        locked = true;
-        address payable recipient = payable(tx.origin);
-        recipient.transfer(amt / 0.01 ether);
-        locked = false;
-    }
+
 }
