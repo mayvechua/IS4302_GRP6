@@ -111,12 +111,12 @@ contract Donor {
 
 
     //function to create a new donor, and add to 'donors' map
-    function createDonor(string memory name, string memory password)
+    function createDonor(string memory name)
         public
         returns (uint256)
     {
         // create and add store donor in donorStorage
-        uint256 newDonorId = donorStorage.createDonor(name, password);
+        uint256 newDonorId = donorStorage.createDonor(name);
         emit createdDonor(newDonorId);
         return newDonorId;
     }

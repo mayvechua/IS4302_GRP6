@@ -11,8 +11,6 @@ contract RecipientStorage {
         // recipientState state;
         address owner;
         string username;
-        string pw;
-        uint256 wallet; // amt of ether in wallet
         uint256[] activeRequests;
         uint256[] withdrawals;
     }
@@ -70,8 +68,7 @@ contract RecipientStorage {
     
     //function to create a new recipient, and add to 'recipients' map
     function createRecipient (
-        string memory name,
-        string memory password
+        string memory name
     ) public returns(uint256) {
         uint256[] memory setActiveRequest;
         uint256[] memory setWithDrawal;
@@ -79,8 +76,6 @@ contract RecipientStorage {
             // recipientState.created,
             tx.origin, // recipient address
             name,
-            password,
-            0, // wallet
             setActiveRequest,
             setWithDrawal
         );
@@ -122,11 +117,6 @@ contract RecipientStorage {
         return recipients[recipientId].owner;
     }
 
-    // return wallet amount
-    function getRecipientWallet (uint256 recipientId) public view returns(uint256) {
-        return recipients[recipientId].wallet;
-    }
-
     // return list of withdrawals per recipient
     function getRecipientWithdrawals (uint256 recipientId) public view returns(uint256[] memory) {
         return recipients[recipientId].withdrawals;
@@ -140,22 +130,6 @@ contract RecipientStorage {
     // return requestIDs of recipeint
     function getRequests (uint256 recipientId) public view returns (uint256[] memory) {
         return recipients[recipientId].activeRequests;
-    }
-
-    // modify wallet amount for recipient, operation = "+" for credit, operation = "-" for debit
-    function modifyRecipientWallet (uint256 recipientId, uint256 amount, string memory operation) public {
-        if (keccak256(abi.encodePacked(operation)) == keccak256(abi.encodePacked("+"))) {
-            recipients[recipientId].wallet += amount;
-        } else {
-            recipients[recipientId].wallet -= amount;
-        }
-    }
-
-    // empty recipient wallet
-    function emptyRecipientWallet (uint256 recipientId) ownerOnly(recipientId) public returns (uint256){
-        uint256 walletAmt = recipients[recipientId].wallet;
-        recipients[recipientId].wallet = 0;
-        return walletAmt;
     }
 
     // REQUEST LEVEL GETTERS/SETTERS

@@ -107,7 +107,6 @@ contract Recipient {
     }
 
 
-
     //Core Functions 
     //function to create a new recipient, and add to 'recipients' map
 
@@ -121,8 +120,9 @@ contract Recipient {
         tokenContract.transferToken(sender, receiver, token);
     }
 
-    function cashOutTokens(uint256 amt) private noReEntrant {
-        tokenContract.cashOut(amt);
+    // cash out all the tokens that the recipient owns
+    function cashOutTokens() private noReEntrant {
+        tokenContract.cashOut(tokenContract.checkCredit());
     }
 
     //Functions that will refund tokens if the approved request expired 
@@ -144,11 +144,6 @@ contract Recipient {
                     uint256 amt = recipientStorage.getWithdrawalAmount(
                         withdrawalId
                     );
-                    recipientStorage.modifyRecipientWallet(
-                        recipientStorage.getWithdrawalRecipient(withdrawalId),
-                        amt,
-                        "-"
-                    ); // deduct the expired tokens from the recipient's wallet
                     transferPayment(
                         recipientStorage.getRecipientOwner(recId),
                         recipientStorage.getWithdrawalDonor(withdrawalId),
@@ -173,7 +168,8 @@ contract Recipient {
         stoppedInEmergency
     {
         recipientStorage.removeWithdrawal(recipientId);
-        cashOutTokens(recipientStorage.emptyRecipientWallet(recipientId));
+        locked = true;
+        cashOutTokens();
         // unlock after the transaction is completed
         locked = false;
     }
@@ -201,14 +197,8 @@ contract Recipient {
     }
     
     //functions to create recipient 
-    function createRecipient(string memory name, string memory password)
-        public
-        returns (uint256)
-    {
-        uint256 newRecipientId = recipientStorage.createRecipient(
-            name,
-            password
-        );
+    function createRecipient(string memory name) public returns (uint256) {
+        uint256 newRecipientId = recipientStorage.createRecipient(name);
         return newRecipientId;
     }
 
@@ -269,17 +259,20 @@ contract Recipient {
         ); // withdrawal of tokens allowed for 7 days from time of completion
 
         // get recipient of withdrawal
-        uint256 recipientId = recipientStorage.getWithdrawalRecipient(
-            withdrawalId
-        );
+        uint256 recipientId = recipientStorage.getWithdrawalRecipient(withdrawalId);
+
         // facilitate withdrawal
         uint256 amount = recipientStorage.getWithdrawalAmount(withdrawalId);
-        recipientStorage.modifyRecipientWallet(recipientId, amount, "+");
         recipientStorage.addWithdrawalRefundAddress(withdrawalId, donorAddress);
         // remove request
         recipientStorage.removeRequest(requestId);
 
         emit completedRequest(requestId, listingId);
+    }
+
+    function cancelRequest(uint256 recipientId, uint256 requestId, uint256 listingId) ownerOnly(recipientId) validRecipientId(recipientId) public isActive {
+        recipientStorage.removeRequest(requestId);
+        marketContract.cancelRequest(requestId, listingId);
     }
 
     //GETTER FUNCTIONS
