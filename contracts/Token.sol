@@ -21,7 +21,7 @@ contract Token {
         _;
     }
 
-    modifier ownerOnly() {
+    modifier contractOwnerOnly() {
         require(
             msg.sender == owner,
             "you are not allowed to use this function"
@@ -33,7 +33,7 @@ contract Token {
     
     //Self-destruct function
     bool internal locked = false;
-    function destroyContract() public ownerOnly {
+    function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(owner);
         selfdestruct(receiver);
     }
@@ -41,7 +41,7 @@ contract Token {
     //Emergency
     bool public contractStopped = false;
 
-    function toggleContactStopped() public ownerOnly {
+    function toggleContactStopped() public contractOwnerOnly {
         contractStopped = !contractStopped;
     }
 
@@ -97,7 +97,7 @@ contract Token {
     }
 
     //setter for conversion
-    function setConversionRate(uint256 rate) public ownerOnly {
+    function setConversionRate(uint256 rate) public contractOwnerOnly {
         conversionRate = rate;
     }
 

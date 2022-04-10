@@ -25,7 +25,7 @@ contract DonationMarket {
         _;
     }
 
-    modifier ownerOnly() {
+    modifier contractOwnerOnly() {
         require(msg.sender == owner, "You are not allowed to use this function!");
          _;
     }
@@ -60,7 +60,7 @@ contract DonationMarket {
 
 
     //Emergency Stop
-    function toggleContactStopped() public ownerOnly() {
+    function toggleContactStopped() public contractOwnerOnly {
         isStopped = !isStopped;
     }
 
@@ -87,7 +87,7 @@ contract DonationMarket {
     }
 
     //Self Destruct Function of contract 
-    function selfDestruct() public ownerOnly() {
+    function selfDestruct() public contractOwnerOnly {
         address payable addr = payable(owner);
         selfdestruct(addr); 
     }
@@ -196,7 +196,7 @@ contract DonationMarket {
     }
     
         // self-destruct function 
-     function destroyContract() public ownerOnly {
+     function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(owner);
          selfdestruct(receiver);
      }
