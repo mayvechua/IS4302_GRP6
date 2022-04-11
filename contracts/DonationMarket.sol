@@ -208,7 +208,7 @@ contract DonationMarket {
     }
 
 
-    //get all active request of listing 
+    //get all active request of selected listing 
     function getActiveRequest(uint256 listingId)  public view validListingOnly(listingId) listingDonorOnly(listingId)  returns (uint256[] memory) {
         uint256[] memory allRequestId = donationMarketStorage.getListingRequests(listingId);
         uint256[] memory activeRequests = new uint256[] (allRequestId.length);

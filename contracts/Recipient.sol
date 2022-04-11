@@ -196,6 +196,7 @@ contract Recipient {
         uint256 requestId
     ) public ownerOnly(recipientId) validRecipientId(recipientId) {
         //checks
+        require(recipientStorage.checkRequestValidity(requestId), "Invalid Request ID");
         require(
             keccak256(abi.encode(marketContract.getCategory(listingId))) ==
                 keccak256(
