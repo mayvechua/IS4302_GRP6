@@ -94,11 +94,6 @@ contract Donor {
             tokenContract.checkCredit() >= amt,
             "Donor does not have enough ether to create listing!"
         );
-        require(
-            amt < 10 ether,
-            "Donated amount hit limit! Donated amount cannot be more than 10 ether!"
-        );
-
         uint256 listingId = marketContract.createListing(
             donorId,
             amt,
@@ -139,6 +134,12 @@ contract Donor {
             requestId
         );
     }
+    //Unlist Donor Listing 
+    function unlist(uint256 donorId, uint256 listingId) public ownerOnly(donorId) validDonorId(donorId){
+        marketContract.unlist(listingId);
+        donorStorage.removeListing(donorId);
+    }
+    //Getter Functions 
     // Get all active (still listed in market) listing of donors to be shown in Frontend 
     function getActiveListings(uint256 donorId)
         public
@@ -146,24 +147,15 @@ contract Donor {
         returns (uint256[] memory)
     {
         uint8 counter = 0;
-        uint256[] memory currentListings = donorStorage.getListings(donorId);
-        uint256[] memory activeListing = new uint256[](currentListings.length);
-        for (uint8 i = 0; i < currentListings.length; i++) {
-            if (marketContract.checkListing(currentListings[i])) {
-                activeListing[counter] = currentListings[i];
+        uint256[] memory allListings = donorStorage.getListings(donorId);
+        uint256[] memory activeListing = new uint256[](donorStorage.getNumActiveListing(donorId));
+        for (uint8 i = 0; i < allListings.length; i++) {
+            if (marketContract.checkListing(allListings[i])) {
+                activeListing[counter] = allListings[i];
                 counter++;
             }
         }
         return activeListing;
-    }
-
-    function getListings(uint256 donorId)
-        public
-        view
-        returns (uint256[] memory)
-    {
-        uint256[] memory currentListings = donorStorage.getListings(donorId);
-        return currentListings;
-    }
+    }  
 
 }

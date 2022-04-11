@@ -13,6 +13,7 @@ contract RecipientStorage {
         string username;
         uint256[] activeRequests;
         uint256[] withdrawals;
+        uint256 numActiveRequest;
     }
 
     // unique instance of required donation
@@ -21,9 +22,11 @@ contract RecipientStorage {
         uint256 recipientId;
         uint256[] listingsId;
         uint256 amt;
-        uint8 deadline;
+        uint256 deadline;
         string category;
         bool isValue; 
+        uint256 numActiveListing;
+  
     }
 
     // unique instance of a completed donation converted into a request for withdrawal into funds 
@@ -37,7 +40,7 @@ contract RecipientStorage {
 
     address owner = msg.sender; // set deployer as owner of storage
     uint256 numRecipients = 0;
-    uint256 numRequests = 0;
+    uint256 numRequests = 1;
     mapping(uint256 => recipient) recipients;
     mapping(uint256 => request) requests; // requestId -> hash(recipientID, username,pw, requestID)
     mapping(uint256 => withdrawal) withdrawalRequests; // available only for 7 days
@@ -59,7 +62,7 @@ contract RecipientStorage {
     //Security Functions
     
     //Self-destruct function
-    bool internal locked = false;
+    bool public locked = false;
     function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(owner);
         selfdestruct(receiver);
@@ -77,7 +80,7 @@ contract RecipientStorage {
             tx.origin, // recipient address
             name,
             setActiveRequest,
-            setWithDrawal
+            setWithDrawal,0
         );
         uint256 newRecipientId = numRecipients++;
         recipients[newRecipientId] = newRecipient; 
@@ -86,17 +89,18 @@ contract RecipientStorage {
 
     event pushedToActive(uint256[] activeRequests);
     // create a request for a recipient. requestsid will be stored within recipient for access, request itself will be stored in another mapping
-    function createRequest(uint256 recipientId,uint256 requestedAmt, uint8 deadline, string memory category) public returns (uint256) {
+    function createRequest(uint256 recipientId,uint256 requestedAmt, uint256 deadline, string memory category) public returns (uint256) {
         require(requestedAmt > 0, "minimum request need to contain at least 1 Token");
         require(requestedAmt < 100, "Requested Amounted hit limit");
         uint256 requestId = numRequests;
         numRequests +=1;
         recipients[recipientId].activeRequests.push(requestId);
+        recipients[recipientId].numActiveRequest +=1;
 
         emit pushedToActive(recipients[recipientId].activeRequests);
 
         uint256[] memory listings;
-        requests[requestId] = request(requestId, recipientId,listings,requestedAmt, deadline, category, true);
+        requests[requestId] = request(requestId, recipientId,listings,requestedAmt, deadline, category, true,0);
 
         return requestId;
     }
@@ -132,6 +136,12 @@ contract RecipientStorage {
         return recipients[recipientId].activeRequests;
     }
 
+     //getter function to get the list of listing the request has request
+    function getNumActiveRequest(uint256 recipientId) public view returns (uint256) {
+        return  recipients[recipientId].numActiveRequest;
+    }
+
+
     // REQUEST LEVEL GETTERS/SETTERS
 
     // return request category
@@ -145,7 +155,7 @@ contract RecipientStorage {
     }
 
     // return request deadline
-    function getRequestDeadline (uint256 requestId) public view returns(uint8) {
+    function getRequestDeadline (uint256 requestId) public view returns(uint256) {
         return requests[requestId].deadline;
     }
 
@@ -156,6 +166,16 @@ contract RecipientStorage {
     // add unique solicitation attempt
     function addListingToRequest (uint256 requestId, uint256 listingId) public {
         requests[requestId].listingsId.push(listingId);
+    }
+
+    //getter function to get the number of activelisting the request has request
+    function getNumListing(uint256 requestId) public view returns (uint256) {
+        return  requests[requestId].numActiveListing;
+    }
+
+    //getter function to get the list of listing the request has request
+    function getRequestedListing(uint256 requestId) public view returns (uint256[] memory) {
+        return  requests[requestId].listingsId;
     }
 
     
@@ -199,7 +219,8 @@ contract RecipientStorage {
     // OTHER HELPER FUNCTIONS
 
     // remove request from tracking in mapping
-    function removeRequest (uint256 requestId) public {
+    function removeRequest (uint256 requestId, uint256 recipientId) public {
+        recipients[recipientId].numActiveRequest -= 1;
         delete requests[requestId];
     }
 

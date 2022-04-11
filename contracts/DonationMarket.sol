@@ -5,12 +5,9 @@ import "./DonationMarketStorage.sol";
 
 contract DonationMarket {
     address owner;
-    uint256 contractEthBalance;
-    uint256 listingCount;
     Token tokenContract;
     DonationMarketStorage donationMarketStorage;
     uint contract_maintenance; // time tracker, deprecate the withdrawToken() and check for expiration daily
-
 
     constructor(Token tokenAddress, DonationMarketStorage storageAddress) public {
         tokenContract = tokenAddress;
@@ -70,10 +67,14 @@ contract DonationMarket {
     }
     
     //Automatic Deprecation of requests(check the deadline)
-    function autoUnlist() internal whenDeprecated {
-        for (uint listId; listId < listingCount; listId++) {
-            for (uint req; req < donationMarketStorage.getListingRequests(req).length; req++) {
-                if (block.timestamp > donationMarketStorage.getRequestExpiry(req)) {
+    function autoRemoveExpiredRequest() internal whenDeprecated {
+        uint256[] memory activeListing = getAllListings();
+        for (uint8 i; i < activeListing.length; i++) {
+            uint256 listId = activeListing[i];
+            uint256[] memory requestId = getActiveRequest(listId);
+            for (uint req; req < requestId.length; req++) {
+                if ( requestId[req] != 0 
+                && block.timestamp > donationMarketStorage.getRequestExpiry(requestId[req])) {
                     cancelRequest(req, listId); // request has expired, removed request
                 }
             }
@@ -81,7 +82,7 @@ contract DonationMarket {
         autoDeprecate();
     }
 
-    //Check if the request have expired 
+    //Checking process of whether or not the request have expired 
     function hasExpired() public view returns (bool) {
         return block.timestamp > contract_maintenance ? true : false;
     }
@@ -114,7 +115,6 @@ contract DonationMarket {
         locked = true;
         tokenContract.transferToken(owner, tx.origin, donationMarketStorage.getListingAmount(listingId));
         emit transferred(listingId, tx.origin);
-        contractEthBalance -= donationMarketStorage.getListingAmount(listingId);
         locked = false;
         emit listingUnlisted(listingId);
     }
@@ -130,7 +130,6 @@ contract DonationMarket {
         uint256 amount = donationMarketStorage.getRequestAmt(requestId);
         require(donationMarketStorage.getListingAmount(listingId) >= amount, "Insufficient balance in listing to approve this transaction");
         tokenContract.transferToken(owner, donationMarketStorage.getRequestRecipientAddress(requestId), amount);
-        contractEthBalance -= amount ;
         locked = false;
         emit transferred(listingId, donationMarketStorage.getRequestRecipientAddress(requestId));
         // transfer end, check 
@@ -147,7 +146,7 @@ contract DonationMarket {
     //add request to listing
     function addRequest(uint256 listingId, uint256 recipientId, uint256 amt , uint256 deadline, uint256 requestId) public  validListingOnly(listingId) isActive {
         require(tx.origin != donationMarketStorage.getListingDonorAddress(listingId), "You cannot request for your own listing, try unlisting instead!");
-        uint expirationTime = block.timestamp + deadline * (1 days);
+        uint expirationTime = deadline;
         donationMarketStorage.addRequest(requestId, listingId, recipientId, amt, deadline, tx.origin, expirationTime);
         emit requestAdded(listingId, requestId);
     }
@@ -155,10 +154,8 @@ contract DonationMarket {
 
     // list the listing created by donor 
     function createListing(uint256 donorId, uint256 amt, string memory category) public returns (uint256) {
-        contractEthBalance += amt;
-        uint256 listingId = listingCount;
-        listingCount += 1;
-        donationMarketStorage.addListing(listingId, donorId, tx.origin, category, amt);
+        uint256 listingId = donationMarketStorage.getListingCount();
+        donationMarketStorage.addListing(donorId, tx.origin, category, amt);
         emit listingCreated(listingId);
         return listingId;
     }
@@ -194,12 +191,35 @@ contract DonationMarket {
     function getOwner() public view returns (address) {
         return owner;
     }
-    
-        // self-destruct function 
-     function destroyContract() public contractOwnerOnly {
-        address payable receiver = payable(owner);
-         selfdestruct(receiver);
-     }
+
+    //getter functions to get all active listing in the market
+    function getAllListings() public view returns (uint256[] memory) {
+        uint256[] memory allActiveListing = new uint256[] (donationMarketStorage.getActiveListingCount());
+        uint256[] memory allListingId = donationMarketStorage.getAllListing();
+        uint8 counter = 0;
+        for (uint8 i =0; i < allListingId.length; i++) {
+            if (donationMarketStorage.checkListing(allListingId[i])) {
+                allActiveListing[counter] = allListingId[i];
+                counter++;
+            }
+             
+        }
+        return allActiveListing;
+    }
 
 
+    //get all active request of listing 
+    function getActiveRequest(uint256 listingId)  public view validListingOnly(listingId) listingDonorOnly(listingId)  returns (uint256[] memory) {
+        uint256[] memory allRequestId = donationMarketStorage.getListingRequests(listingId);
+        uint256[] memory activeRequests = new uint256[] (allRequestId.length);
+        for (uint8 i ; i < allRequestId.length ; i++) {
+            if (donationMarketStorage.checkRequest(allRequestId[i])) {
+                activeRequests[i] = allRequestId[i];
+            } else {
+                activeRequests[i]  = 0; //frontend to filter off 0 (representing inactive request) as request id start with 1
+            }
+        }
+        return activeRequests;
+         
+    }
 }

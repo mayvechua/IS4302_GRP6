@@ -85,7 +85,7 @@ contract Recipient {
     event completedRequest(uint256 requestId, uint256 listingId);
     event requestCreated(uint256 requestId);
     event enteredRequest(bool entered);
-    event addingToMarket(uint8 deadline, uint256 amount);
+    event addingToMarket(uint256 deadline, uint256 amount);
    //Security Functions 
 
     function toggleContactStopped() public contractOwnerOnly {
@@ -120,30 +120,17 @@ contract Recipient {
         tokenContract.transferToken(sender, receiver, token);
     }
 
-    // cash out all the tokens that the recipient owns
-    function cashOutTokens() private noReEntrant {
-        tokenContract.cashOut(tokenContract.checkCredit());
-    }
 
     //Functions that will refund tokens if the approved request expired 
     //Expired meaning donor approve request, requested tokens are transfered to recipient but recipient did not cash out within 7 days)
     function refundToken() public whenDeprecated {
-        for (
-            uint256 recId;
-            recId < recipientStorage.getTotalRecipients();
-            recId++
-        ) {
-            uint256[] memory withdrawals = recipientStorage
-                .getRecipientWithdrawals(recId);
+        for (uint256 recId = 0;recId < recipientStorage.getTotalRecipients(); recId++) {
+            //since recipeint start from id 0
+            uint256[] memory withdrawals = recipientStorage.getRecipientWithdrawals(recId);
             for (uint256 req; req < withdrawals.length; req++) {
                 uint256 withdrawalId = withdrawals[req];
-                if (
-                    block.timestamp >
-                    recipientStorage.getWithdrawalRecipient(withdrawalId)
-                ) {
-                    uint256 amt = recipientStorage.getWithdrawalAmount(
-                        withdrawalId
-                    );
+                if (block.timestamp > recipientStorage.getWithdrawalRecipient(withdrawalId)) { // passed the 7 days idle treshold
+                    uint256 amt = recipientStorage.getWithdrawalAmount(withdrawalId);
                     transferPayment(
                         recipientStorage.getRecipientOwner(recId),
                         recipientStorage.getWithdrawalDonor(withdrawalId),
@@ -169,7 +156,7 @@ contract Recipient {
     {
         recipientStorage.removeWithdrawal(recipientId);
         locked = true;
-        cashOutTokens();
+        tokenContract.cashOut(tokenContract.checkCredit());
         // unlock after the transaction is completed
         locked = false;
     }
@@ -179,7 +166,7 @@ contract Recipient {
     function createRequest(
         uint256 recipientId,
         uint256 requestedAmt,
-        uint8 deadline,
+        uint256 deadline,
         string memory category
     ) public returns (uint256) {
         require(
@@ -222,7 +209,7 @@ contract Recipient {
         );
         emit enteredRequest(true);
 
-        uint8 deadline = recipientStorage.getRequestDeadline(requestId);
+        uint256 deadline = recipientStorage.getRequestDeadline(requestId);
         uint256 amount = recipientStorage.getRequestAmount(requestId);
 
         emit addingToMarket(deadline, amount);
@@ -262,48 +249,47 @@ contract Recipient {
         uint256 recipientId = recipientStorage.getWithdrawalRecipient(withdrawalId);
 
         // facilitate withdrawal
-        uint256 amount = recipientStorage.getWithdrawalAmount(withdrawalId);
         recipientStorage.addWithdrawalRefundAddress(withdrawalId, donorAddress);
         // remove request
-        recipientStorage.removeRequest(requestId);
+        recipientStorage.removeRequest(requestId,recipientId);
 
         emit completedRequest(requestId, listingId);
     }
 
     function cancelRequest(uint256 recipientId, uint256 requestId, uint256 listingId) ownerOnly(recipientId) validRecipientId(recipientId) public isActive {
-        recipientStorage.removeRequest(requestId);
+        recipientStorage.removeRequest(requestId, recipientId);
         marketContract.cancelRequest(requestId, listingId);
     }
 
     //GETTER FUNCTIONS
-    //getter functions to help recipients keep track of their active request in Frontend
-    function getRecipientRequest(uint256 recipientId)
-        public
-        view
-        returns (uint256[] memory)
-    {
-        uint256[] memory activeRequest = new uint256[](
-            recipientStorage.getRequests(recipientId).length
-        );
+    //If True: getter functions to help recipients keep track of their active requests  in Frontend
+    // else : getter function to help recipeints keep track of the active listing each requestID has requested in Frontend 
+    function getRecipientRequest(uint256 getterId, bool getRequest) public view returns (uint256[] memory) {
+        uint256 resultLength = recipientStorage.getNumActiveRequest(getterId);
+        if (!getRequest) {
+            resultLength = recipientStorage.getNumListing(getterId);
+        }
+        uint256[] memory allIds = recipientStorage.getRequests(getterId);
+        if (!getRequest) {
+            allIds = recipientStorage.getRequestedListing(getterId);
+        }
+        uint256[] memory active= new uint256[](resultLength);
         uint8 counter = 0;
-        for (
-            uint8 i = 0;
-            i < recipientStorage.getRequests(recipientId).length;
-            i++
-        ) {
-            if (
-                recipientStorage.checkRequestValidity(
-                    recipientStorage.getRequests(recipientId)[i]
-                )
-            ) {
-                activeRequest[counter] = recipientStorage.getRequests(
-                    recipientId
-                )[i];
+        
+        for (uint8 i = 0; i < allIds.length; i++) {
+            if (getRequest && recipientStorage.checkRequestValidity(allIds[i])) {
+                active[counter] = allIds[i];
+                counter++;
+            } 
+            if (!getRequest && marketContract.checkListing(allIds[i])) {
+                active[counter] = allIds[i];
                 counter++;
             }
         }
-        return activeRequest;
+        return active;
     }
+
+
 
 
 }

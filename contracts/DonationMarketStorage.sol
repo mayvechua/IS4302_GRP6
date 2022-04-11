@@ -26,6 +26,9 @@ contract DonationMarketStorage {
     address owner = msg.sender; // set deployer as owner of storage
     mapping(uint256 => listing) Listings;
     mapping (uint256 => state) ListingRequests; 
+    uint256[] allListingId;
+    uint256 listingCount;
+    uint256 numActiveListing;
     //Access Restriction 
     modifier contractOwnerOnly() {
         require(
@@ -38,7 +41,7 @@ contract DonationMarketStorage {
     //Security Functions
     
     //Self-destruct function
-    bool internal locked = false;
+    bool public locked = false;
     function destroyContract() public contractOwnerOnly {
         address payable receiver = payable(owner);
         selfdestruct(receiver);
@@ -53,12 +56,31 @@ contract DonationMarketStorage {
     // LISTING LEVEL
 
     // add new listing to mapping
-    function addListing(uint256 listingId, uint256 donorId, address donorAddress, string memory category, uint256 amt) public {
+    function addListing( uint256 donorId, address donorAddress, string memory category, uint256 amt) public returns (uint256){
         uint256[] memory recipientList;
+        uint256 listingId = listingCount;
+        listingCount += 1;
+        numActiveListing += 1;
+        allListingId.push(listingId);
         listing memory newListing = listing(donorId, donorAddress, category, amt, recipientList, true);
         Listings[listingId]= newListing;
+        return listingId;
     }
 
+    // getter function for listing ID 
+    function getListingCount() public view returns (uint256) {
+        return listingCount;
+    }
+
+    // getter function for  number of active listing
+    function getActiveListingCount() public view returns (uint256) {
+        return numActiveListing;
+    }
+
+    // getter function for array of active listing ID
+    function getAllListing() public view returns (uint256[] memory) {
+        return allListingId;
+    }
     // getter function to return list of requests belong to listing
     function getListingRequests(uint256 listingId) public view returns (uint256[] memory) {
         return Listings[listingId].requestIdList;
@@ -86,6 +108,7 @@ contract DonationMarketStorage {
     
     //setter function to remove request from mapping
     function removeListing(uint256 listingId) public {
+        numActiveListing -= 1;
         delete Listings[listingId];
     }
 
