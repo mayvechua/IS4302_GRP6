@@ -20,7 +20,7 @@ contract('Donor', function(accounts) {
 
     //test create token
     it ("Creating Donor", async() => {
-        let donorD1 = await donorInstance.createDonor("donor", "password", {from: accounts[1]});
+        let donorD1 = await donorInstance.createDonor("donor", {from: accounts[1]});
         
         assert.notStrictEqual(
             donorD1,
@@ -31,7 +31,7 @@ contract('Donor', function(accounts) {
 
 
     it ("Create Listing by donor", async() => {
-        let getTokens = await tokenInstance.getCredit({from: accounts[1], value: 1000000000000000000})
+        let getTokens = await tokenInstance.getCredit({from: accounts[1], value: 10000000000000000000})
         let Listing = await donorInstance.createListing(0,50, "children", {from: accounts[1]});
         assert.notStrictEqual(
             Listing,
@@ -56,10 +56,10 @@ contract('Donor', function(accounts) {
 
 
     it ("Approved Request by Recipient for Token", async() => {
-        let recipientR1 = await recipientInstance.createRecipient("recipient", "password123", {from: accounts[2]});
+        let recipientR1 = await recipientInstance.createRecipient("recipient", {from: accounts[2]});
         let requestR1 = await recipientInstance.createRequest(0, 50, 2,"children", {from: accounts[6]});
-        let addrequest = await recipientInstance.requestDonation(0, 0, 0, {from: accounts[2]});
-        let approvedD1 = await donorInstance.approveRecipientRequest(0,0, 0, 0, {from: accounts[1]});
+        let addrequest = await recipientInstance.requestDonation(0, 0, 1, {from: accounts[2]});
+        let approvedD1 = await donorInstance.approveRecipientRequest(1, 0, 0, 0, {from: accounts[1]});
         truffleAssert.eventEmitted(approvedD1, 'approvedRecipientRequest');
     })
  

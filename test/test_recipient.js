@@ -23,7 +23,7 @@ contract('Recipient', function(accounts) {
 
     //test create token
     it ("Creating Recipient", async() => {
-        let recipientR1 = await recipientInstance.createRecipient("recipient", "password", {from: accounts[2]});
+        let recipientR1 = await recipientInstance.createRecipient("recipient", {from: accounts[2]});
         
         assert.notStrictEqual(
             recipientR1,
@@ -39,9 +39,9 @@ contract('Recipient', function(accounts) {
     })
 
     it ("Request donation Successful", async() => {
-        let donorD1 = await donorInstance.createDonor("donor", "password", {from: accounts[1]});
+        let donorD1 = await donorInstance.createDonor("donor", {from: accounts[1]});
         let listingM1 = await marketInstance.createListing(0, 50, "food", {from: accounts[1]});
-        let requestedR1 = await recipientInstance.requestDonation(0, 0, 0, {from: accounts[2]});
+        let requestedR1 = await recipientInstance.requestDonation(0, 0, 1, {from: accounts[2]});
 
         truffleAssert.eventEmitted(requestedR1, 'requestedDonation')
     });
@@ -56,9 +56,9 @@ contract('Recipient', function(accounts) {
 
     it ("test functions that only the recipient can execute himself", async() => {
         
-        let recipientR2 = await recipientInstance.createRecipient("recipient", "password", {from: accounts[4]});
+        let recipientR2 = await recipientInstance.createRecipient("recipient", {from: accounts[4]});
         let requestR2 = await recipientInstance.createRequest(1, 10, 2, "food", {from: accounts[6]});
-        let donorD2 = await donorInstance.createDonor("donor", "password", {from: accounts[5]});
+        let donorD2 = await donorInstance.createDonor("donor", {from: accounts[5]});
         let listingM2 = await marketInstance.createListing(1, 50, "food", {from: accounts[5]});
         let requestedR2 = await recipientInstance.requestDonation(1, 1, 1, {from: accounts[4]});
         let withdrawalR2 = await recipientInstance.withdrawTokens(1, {from: accounts[4]});
@@ -68,9 +68,9 @@ contract('Recipient', function(accounts) {
             "Only the recipient can withdraw tokens!"
         );
 
-        let recipientR3 = await recipientInstance.createRecipient("recipient", "password", {from: accounts[7]});
+        let recipientR3 = await recipientInstance.createRecipient("recipient", {from: accounts[7]});
         let requestR3 = await recipientInstance.createRequest(2, 10, 2, "food", {from: accounts[6]});
-        let donorD3 = await donorInstance.createDonor("donor", "password", {from: accounts[8]});
+        let donorD3 = await donorInstance.createDonor("donor", {from: accounts[8]});
         let listingM3 = await marketInstance.createListing(2, 50, "food", {from: accounts[8]});
         let requestedR3 = await recipientInstance.requestDonation(2, 2, 2, {from: accounts[7]});
 

@@ -30,9 +30,9 @@ contract('Token', function(accounts) {
     })
 
     it ("Test transfer of DT", async() => {
-        let donorD1 = await donorInstance.createDonor("donor", "password", {from: accounts[1]});
+        let donorD1 = await donorInstance.createDonor("donor", {from: accounts[1]});
         let topUpD1 = await tokenInstance.getCredit({from: accounts[1], value: "1000000000000000000"});
-        let recipientR1 = await recipientInstance.createRecipient("recipient", "password123", {from: accounts[2]});
+        let recipientR1 = await recipientInstance.createRecipient("recipient", {from: accounts[2]});
         
         await truffleAssert.passes(tokenInstance.transferToken(accounts[1], accounts[2], 10, {from: accounts[1]}));
     })
