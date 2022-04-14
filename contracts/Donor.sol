@@ -138,6 +138,7 @@ contract Donor {
     function unlist(uint256 donorId, uint256 listingId) public ownerOnly(donorId) validDonorId(donorId){
         marketContract.unlist(listingId);
         donorStorage.removeListing(donorId);
+        emit listingUnlisted(listingId);
     }
     //Getter Functions 
     // Get all active (still listed in market) listing of donors to be shown in Frontend 

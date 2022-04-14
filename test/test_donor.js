@@ -41,9 +41,34 @@ contract('Donor', function(accounts) {
         truffleAssert.eventEmitted(Listing, 'createdListing');
     });
 
+    it ("Unlisting by donor", async() => {
+        let listingL2 = await donorInstance.createListing(0,50, "food", {from: accounts[1]});
+        let unlist  = await donorInstance.unlist(0,1, {from: accounts[1]});
+
+        truffleAssert.eventEmitted(unlist, "listingUnlisted");
+    })
+
     it ("test functions that only the donor can execute himself", async() => {
         try {
             await donorInstance.approveRecipientRequest(0,0, 0, 0, {from: accounts[2]});
+        } catch (error) {
+            const errorMsgReceived =  error.message.search("You are not the donor!") >= 0;
+            assert(errorMsgReceived, "Error Message Received");
+            return;
+        };
+        assert.fail("Expected Error not received!");
+
+        try {
+            await donorInstance.unlist(0,0, {from: accounts[2]});
+        } catch (error) {
+            const errorMsgReceived =  error.message.search("You are not the donor!") >= 0;
+            assert(errorMsgReceived, "Error Message Received");
+            return;
+        };
+        assert.fail("Expected Error not received!");
+
+        try {
+            await donorInstance.getActiveListings(0, {from: accounts[2]});
         } catch (error) {
             const errorMsgReceived =  error.message.search("You are not the donor!") >= 0;
             assert(errorMsgReceived, "Error Message Received");

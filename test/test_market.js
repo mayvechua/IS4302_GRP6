@@ -75,6 +75,14 @@ contract('Market', function(accounts) {
         truffleAssert.eventEmitted(approveRequestT1, 'transferred');
     });
 
+    //test that request can be cancelled
+    it ("Cancel Request", async() => {
+        let createListingT2 = await marketInstance.createListing(0, 200, "food", {from: accounts[1]});
+        let requestR2 = await recipientInstance.createRequest(0,25,5,"food", {from: accounts[6]});
+        let addRequestT2 = await marketInstance.addRequest(1,0,25,5,2,{from: accounts[2]});
+        let cancelRequest = await marketInstance.cancelRequest(2,1, {from: accounts[2]});
+    })
+
     //test unlist
     it ("unlist Listing", async() => {
         let unlistT1 = await marketInstance.unlist(0,{from: accounts[1]});

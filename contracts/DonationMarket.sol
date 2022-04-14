@@ -112,6 +112,7 @@ contract DonationMarket {
     event requestAdded(uint256 listingId, uint256 requestId);
     event listingCreated(uint256 listingId);
     event listingUnlisted(uint256 listingId);
+    event requestCancelled(uint256 requestId, uint256 listingId);
 
     //Core Functions
 
@@ -121,6 +122,7 @@ contract DonationMarket {
         validListingOnly(listingId)
     {
         donationMarketStorage.removeRequest(requestId);
+        emit requestCancelled(requestId, listingId);
     }
 
     function unlist(uint256 listingId)
