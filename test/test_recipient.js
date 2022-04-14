@@ -70,12 +70,6 @@ contract('Recipient', function(accounts) {
         let donorD2 = await donorInstance.createDonor("donor", {from: accounts[5]});
         let listingM2 = await marketInstance.createListing(1, 50, "food", {from: accounts[5]});
         let requestedR2 = await recipientInstance.requestDonation(1, 2, 3, {from: accounts[4]});
-        // let withdrawalR2 = await recipientInstance.withdrawTokens(1, {from: accounts[4]});
-        
-        // await truffleAssert.passes(
-        //     withdrawalR2,
-        //     "Only the recipient can withdraw tokens!"
-        // );
 
         try {
             await recipientInstance.withdrawTokens(1, {from: accounts[9]});
@@ -90,12 +84,6 @@ contract('Recipient', function(accounts) {
         let requestR3 = await recipientInstance.createRequest(2, 10, 2, "food", {from: accounts[6]});
         let donorD3 = await donorInstance.createDonor("donor", {from: accounts[8]});
         let listingM3 = await marketInstance.createListing(2, 50, "food", {from: accounts[8]});
-        // let requestedR3 = await recipientInstance.requestDonation(2, 3, 4, {from: accounts[7]});
-
-        // await truffleAssert.passes(
-        //     requestedR3,
-        //     "Only the recipient can make a request!"
-        // );
 
         try {
             await recipientInstance.requestDonation(2, 3, 4, {from: accounts[9]});
@@ -110,12 +98,6 @@ contract('Recipient', function(accounts) {
         let requestR4 = await recipientInstance.createRequest(0, 10, 2, "elderly", {from: accounts[6]});
         let listingM4 = await marketInstance.createListing(0, 50, "elderly", {from: accounts[1]});
         let requestedR4 = await recipientInstance.requestDonation(0, 4, 5, {from: accounts[2]});
-        // let cancel2 = await recipientInstance.cancelRequest(0,5,4, {from: accounts[2]});
-
-        // await truffleAssert.passes(
-        //     cancel2,
-        //     "Only the recipient can cancel a request!"
-        // );
 
         try {
             await recipientInstance.cancelRequest(0,5,4, {from: accounts[9]});
