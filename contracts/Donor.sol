@@ -142,8 +142,8 @@ contract Donor {
     //Getter Functions 
     // Get all active (still listed in market) listing of donors to be shown in Frontend 
     function getActiveListings(uint256 donorId)
-        public
-        view
+        public   ownerOnly(donorId) validDonorId(donorId)
+        view 
         returns (uint256[] memory)
     {
         uint8 counter = 0;

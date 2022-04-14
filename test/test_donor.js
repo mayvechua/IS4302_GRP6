@@ -18,7 +18,6 @@ contract('Donor', function(accounts) {
     });
     console.log("Testing Donor Contract");
 
-    //test create token
     it ("Creating Donor", async() => {
         let donorD1 = await donorInstance.createDonor("donor", {from: accounts[1]});
         
