@@ -84,7 +84,7 @@ contract('Market', function(accounts) {
     })
 
     //test unlist
-    it ("unlist Listing", async() => {
+    it ("Unlist Listing", async() => {
         let unlistT1 = await marketInstance.unlist(0,{from: accounts[1]});
         truffleAssert.eventEmitted(unlistT1, 'listingUnlisted');
     });

@@ -885,7 +885,7 @@
                 "name": "msg",
                 "nodeType": "Identifier",
                 "overloadedDeclarations": [],
-                "referencedDeclaration": 3918,
+                "referencedDeclaration": 3932,
                 "src": "535:3:1",
                 "typeDescriptions": {
                   "typeIdentifier": "t_magic_message",
@@ -1124,7 +1124,7 @@
                             "name": "msg",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 3918,
+                            "referencedDeclaration": 3932,
                             "src": "857:3:1",
                             "typeDescriptions": {
                               "typeIdentifier": "t_magic_message",
@@ -1200,10 +1200,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        3921,
-                        3922
+                        3935,
+                        3936
                       ],
-                      "referencedDeclaration": 3922,
+                      "referencedDeclaration": 3936,
                       "src": "835:7:1",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -1431,7 +1431,7 @@
                       "name": "selfdestruct",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 3926,
+                      "referencedDeclaration": 3940,
                       "src": "1186:12:1",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_selfdestruct_nonpayable$_t_address_payable_$returns$__$",
@@ -3562,7 +3562,7 @@
                               "name": "abi",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 3905,
+                              "referencedDeclaration": 3919,
                               "src": "3769:3:1",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_magic_abi",
@@ -3610,7 +3610,7 @@
                         "name": "keccak256",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 3912,
+                        "referencedDeclaration": 3926,
                         "src": "3759:9:1",
                         "typeDescriptions": {
                           "typeIdentifier": "t_function_keccak256_pure$_t_bytes_memory_ptr_$returns$_t_bytes32_$",
@@ -3672,7 +3672,7 @@
                               "name": "abi",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 3905,
+                              "referencedDeclaration": 3919,
                               "src": "3811:3:1",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_magic_abi",
@@ -3720,7 +3720,7 @@
                         "name": "keccak256",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 3912,
+                        "referencedDeclaration": 3926,
                         "src": "3801:9:1",
                         "typeDescriptions": {
                           "typeIdentifier": "t_function_keccak256_pure$_t_bytes_memory_ptr_$returns$_t_bytes32_$",
@@ -6191,7 +6191,7 @@
                       "overloadedDeclarations": [
                         null
                       ],
-                      "referencedDeclaration": 3918,
+                      "referencedDeclaration": 3932,
                       "type": "msg",
                       "value": "msg"
                     },
@@ -6450,10 +6450,10 @@
                                 }
                               ],
                               "overloadedDeclarations": [
-                                3921,
-                                3922
+                                3935,
+                                3936
                               ],
-                              "referencedDeclaration": 3922,
+                              "referencedDeclaration": 3936,
                               "type": "function (bool,string memory) pure",
                               "value": "require"
                             },
@@ -6494,7 +6494,7 @@
                                       "overloadedDeclarations": [
                                         null
                                       ],
-                                      "referencedDeclaration": 3918,
+                                      "referencedDeclaration": 3932,
                                       "type": "msg",
                                       "value": "msg"
                                     },
@@ -6809,7 +6809,7 @@
                               "overloadedDeclarations": [
                                 null
                               ],
-                              "referencedDeclaration": 3926,
+                              "referencedDeclaration": 3940,
                               "type": "function (address payable)",
                               "value": "selfdestruct"
                             },
@@ -9232,7 +9232,7 @@
                                   "overloadedDeclarations": [
                                     null
                                   ],
-                                  "referencedDeclaration": 3912,
+                                  "referencedDeclaration": 3926,
                                   "type": "function (bytes memory) pure returns (bytes32)",
                                   "value": "keccak256"
                                 },
@@ -9279,7 +9279,7 @@
                                           "overloadedDeclarations": [
                                             null
                                           ],
-                                          "referencedDeclaration": 3905,
+                                          "referencedDeclaration": 3919,
                                           "type": "abi",
                                           "value": "abi"
                                         },
@@ -9343,7 +9343,7 @@
                                   "overloadedDeclarations": [
                                     null
                                   ],
-                                  "referencedDeclaration": 3912,
+                                  "referencedDeclaration": 3926,
                                   "type": "function (bytes memory) pure returns (bytes32)",
                                   "value": "keccak256"
                                 },
@@ -9390,7 +9390,7 @@
                                           "overloadedDeclarations": [
                                             null
                                           ],
-                                          "referencedDeclaration": 3905,
+                                          "referencedDeclaration": 3919,
                                           "type": "abi",
                                           "value": "abi"
                                         },
@@ -11478,12 +11478,12 @@
     "5777": {
       "events": {},
       "links": {},
-      "address": "0x7c5D65c319076F407A033B2421E4918d3EdCdB71",
-      "transactionHash": "0x18e4c04c72c2c2f9499e65265f80f8e34a5bfd15587b2e82c2c5df7afbf67da2"
+      "address": "0x2B5d6dC62C27A9db9a116E8D80D76082E4e0bcFD",
+      "transactionHash": "0xddfe3f46951a4ef966aa795ccf5e6968aa705119c205b17f7ebb9c4afe0f2331"
     }
   },
   "schemaVersion": "3.4.4",
-  "updatedAt": "2022-04-14T06:53:15.126Z",
+  "updatedAt": "2022-04-14T09:40:36.132Z",
   "networkType": "ethereum",
   "devdoc": {
     "methods": {}

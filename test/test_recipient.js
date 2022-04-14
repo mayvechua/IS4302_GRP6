@@ -54,30 +54,78 @@ contract('Recipient', function(accounts) {
         
     })
 
+    it ("Cancel request function", async() => {
+        let request = await recipientInstance.createRequest(0, 10, 2, "children", {from: accounts[6]});
+        let listing = await marketInstance.createListing(0, 50, "children", {from: accounts[1]});
+        let requested = await recipientInstance.requestDonation(0, 1, 2, {from: accounts[2]});
+        let cancel = await recipientInstance.cancelRequest(0,2,1, {from: accounts[2]});
+
+        truffleAssert.eventEmitted(cancel, "requestCancelled");
+    })
+
     it ("test functions that only the recipient can execute himself", async() => {
         
         let recipientR2 = await recipientInstance.createRecipient("recipient", {from: accounts[4]});
         let requestR2 = await recipientInstance.createRequest(1, 10, 2, "food", {from: accounts[6]});
         let donorD2 = await donorInstance.createDonor("donor", {from: accounts[5]});
         let listingM2 = await marketInstance.createListing(1, 50, "food", {from: accounts[5]});
-        let requestedR2 = await recipientInstance.requestDonation(1, 1, 1, {from: accounts[4]});
-        let withdrawalR2 = await recipientInstance.withdrawTokens(1, {from: accounts[4]});
+        let requestedR2 = await recipientInstance.requestDonation(1, 2, 3, {from: accounts[4]});
+        // let withdrawalR2 = await recipientInstance.withdrawTokens(1, {from: accounts[4]});
         
-        await truffleAssert.passes(
-            withdrawalR2,
-            "Only the recipient can withdraw tokens!"
-        );
+        // await truffleAssert.passes(
+        //     withdrawalR2,
+        //     "Only the recipient can withdraw tokens!"
+        // );
+
+        try {
+            await recipientInstance.withdrawTokens(1, {from: accounts[9]});
+        } catch (error) {
+            const errorMsgReceived =  error.message.search("you are not the recipient!") >= 0;
+            assert(errorMsgReceived, "Error Message Received");
+            return;
+        };
+        assert.fail("Expected Error not received!");
 
         let recipientR3 = await recipientInstance.createRecipient("recipient", {from: accounts[7]});
         let requestR3 = await recipientInstance.createRequest(2, 10, 2, "food", {from: accounts[6]});
         let donorD3 = await donorInstance.createDonor("donor", {from: accounts[8]});
         let listingM3 = await marketInstance.createListing(2, 50, "food", {from: accounts[8]});
-        let requestedR3 = await recipientInstance.requestDonation(2, 2, 2, {from: accounts[7]});
+        // let requestedR3 = await recipientInstance.requestDonation(2, 3, 4, {from: accounts[7]});
 
-        await truffleAssert.passes(
-            requestedR3,
-            "Only the recipient can make a request!"
-        );
+        // await truffleAssert.passes(
+        //     requestedR3,
+        //     "Only the recipient can make a request!"
+        // );
+
+        try {
+            await recipientInstance.requestDonation(2, 3, 4, {from: accounts[9]});
+
+        } catch (error) {
+            const errorMsgReceived =  error.message.search("you are not the recipient!") >= 0;
+            assert(errorMsgReceived, "Error Message Received");
+            return;
+        };
+        assert.fail("Expected Error not received!");
+
+        let requestR4 = await recipientInstance.createRequest(0, 10, 2, "elderly", {from: accounts[6]});
+        let listingM4 = await marketInstance.createListing(0, 50, "elderly", {from: accounts[1]});
+        let requestedR4 = await recipientInstance.requestDonation(0, 4, 5, {from: accounts[2]});
+        // let cancel2 = await recipientInstance.cancelRequest(0,5,4, {from: accounts[2]});
+
+        // await truffleAssert.passes(
+        //     cancel2,
+        //     "Only the recipient can cancel a request!"
+        // );
+
+        try {
+            await recipientInstance.cancelRequest(0,5,4, {from: accounts[9]});
+
+        } catch (error) {
+            const errorMsgReceived =  error.message.search("you are not the recipient!") >= 0;
+            assert(errorMsgReceived, "Error Message Received");
+            return;
+        };
+        assert.fail("Expected Error not received!");
     })
 
     it ("test security functions that only owner can execute", async() => {
